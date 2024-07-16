@@ -91,12 +91,12 @@ func (pool *RIP7560Pool) Pending(filter txpool.PendingFilter) map[common.Address
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
+	var pending []*txpool.LazyTransaction
 
 	txs := pool.pending
 
 	for i := 0; i < len(txs); i++ {
-		pending[common.Address{}][i] = &txpool.LazyTransaction{
+		pending = append(pending, &txpool.LazyTransaction{
 			Pool:      pool,
 			Hash:      txs[i].Hash(),
 			Tx:        txs[i],
@@ -105,10 +105,12 @@ func (pool *RIP7560Pool) Pending(filter txpool.PendingFilter) map[common.Address
 			GasTipCap: uint256.MustFromBig(txs[i].GasTipCap()),
 			Gas:       txs[i].Gas(),
 			BlobGas:   txs[i].BlobGas(),
-		}
+		})
 	}
 
-	return pending
+	result := make(map[common.Address][]*txpool.LazyTransaction, 1)
+	result[common.Address{}] = pending
+	return result
 }
 
 // SubscribeTransactions is not needed for the External Bundler AA sub pool and 'ch' will never be sent anything.
