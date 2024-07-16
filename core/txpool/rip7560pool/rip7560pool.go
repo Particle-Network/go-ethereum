@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 )
 
 type Config struct {
@@ -83,8 +84,31 @@ func (pool *RIP7560Pool) Get(hash common.Hash) *types.Transaction {
 // 	return nil
 // }
 
-func (pool *RIP7560Pool) Pending(_ txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
-	return nil
+func (pool *RIP7560Pool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
+	if !filter.OnlyRIP7560Txs {
+		return nil
+	}
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
+
+	txs := pool.pending
+
+	for i := 0; i < len(txs); i++ {
+		pending[common.Address{}][i] = &txpool.LazyTransaction{
+			Pool:      pool,
+			Hash:      txs[i].Hash(),
+			Tx:        txs[i],
+			Time:      txs[i].Time(),
+			GasFeeCap: uint256.MustFromBig(txs[i].GasFeeCap()),
+			GasTipCap: uint256.MustFromBig(txs[i].GasTipCap()),
+			Gas:       txs[i].Gas(),
+			BlobGas:   txs[i].BlobGas(),
+		}
+	}
+
+	return pending
 }
 
 // SubscribeTransactions is not needed for the External Bundler AA sub pool and 'ch' will never be sent anything.
