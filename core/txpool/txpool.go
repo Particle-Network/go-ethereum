@@ -356,7 +356,27 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 //
 // The transactions can also be pre-filtered by the dynamic fee components to
 // reduce allocations and load on downstream subsystems.
+// func (p *TxPool) Pending(filter PendingFilter) map[common.Address][]*LazyTransaction {
+// 	txs := make(map[common.Address][]*LazyTransaction)
+// 	for _, subpool := range p.subpools {
+// 		for addr, set := range subpool.Pending(filter) {
+// 			txs[addr] = set
+// 		}
+// 	}
+// 	return txs
+// }
+
 func (p *TxPool) Pending(filter PendingFilter) map[common.Address][]*LazyTransaction {
+	if filter.OnlyRIP7560Txs {
+		txs := make(map[common.Address][]*LazyTransaction)
+		for _, subpool := range p.subpools {
+			if subpool.Type() == 3 {
+				txs[common.Address{}] = subpool.Pending(filter)[common.Address{}]
+
+			}
+		}
+		return txs
+	}
 	txs := make(map[common.Address][]*LazyTransaction)
 	for _, subpool := range p.subpools {
 		for addr, set := range subpool.Pending(filter) {

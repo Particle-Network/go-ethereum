@@ -80,6 +80,17 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
+		if tx.Type() == types.Rip7560Type {
+			_, receipt, logs, err := ApplyRIP7560Transaction(
+				p.config, p.chain, cfg, gp, statedb, &context.Coinbase, header, tx, 0)
+			receipts = append(receipts, receipt)
+			allLogs = append(allLogs, logs...)
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			continue
+		}
+
 		msg, err := TransactionToMessage(tx, signer, header.BaseFee)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)

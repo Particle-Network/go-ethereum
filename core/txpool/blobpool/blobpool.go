@@ -334,6 +334,10 @@ func New(config Config, chain BlockChain) *BlobPool {
 	}
 }
 
+func (pool *BlobPool) Type() uint64 {
+	return 1
+}
+
 // Filter returns whether the given transaction can be consumed by the blob pool.
 func (p *BlobPool) Filter(tx *types.Transaction) bool {
 	return tx.Type() == types.BlobTxType
@@ -1453,7 +1457,7 @@ func (p *BlobPool) drop() {
 func (p *BlobPool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	// If only plain transactions are requested, this pool is unsuitable as it
 	// contains none, don't even bother.
-	if filter.OnlyPlainTxs {
+	if filter.OnlyPlainTxs || filter.OnlyRIP7560Txs {
 		return nil
 	}
 	// Track the amount of time waiting to retrieve the list of pending blob txs

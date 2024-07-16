@@ -373,6 +373,23 @@ func (miner *Miner) commitTransactions(env *environment, plainTxs, blobTxs *tran
 	return nil
 }
 
+func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Transaction, _ *atomic.Int32) error {
+	gasLimit := env.header.GasLimit
+	if env.gasPool == nil {
+		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+	}
+	_txs, receipts, _, err := core.HandleRIP7560Transactions(
+		miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, txs, 0)
+
+	if len(_txs) == 0 {
+		return nil
+	}
+
+	env.txs = append(env.txs, _txs...)
+	env.receipts = append(env.receipts, receipts...)
+	return err
+}
+
 // fillTransactions retrieves the pending transactions from the txpool and fills them
 // into the given sealing block. The transaction selection and ordering strategy can
 // be customized with the plugin in the future.
@@ -391,11 +408,14 @@ func (miner *Miner) fillTransactions(interrupt *atomic.Int32, env *environment) 
 	if env.header.ExcessBlobGas != nil {
 		filter.BlobFee = uint256.MustFromBig(eip4844.CalcBlobFee(*env.header.ExcessBlobGas))
 	}
-	filter.OnlyPlainTxs, filter.OnlyBlobTxs = true, false
+	filter.OnlyPlainTxs, filter.OnlyBlobTxs, filter.OnlyRIP7560Txs = true, false, false
 	pendingPlainTxs := miner.txpool.Pending(filter)
 
-	filter.OnlyPlainTxs, filter.OnlyBlobTxs = false, true
+	filter.OnlyPlainTxs, filter.OnlyBlobTxs, filter.OnlyRIP7560Txs = false, true, false
 	pendingBlobTxs := miner.txpool.Pending(filter)
+
+	filter.OnlyPlainTxs, filter.OnlyBlobTxs, filter.OnlyRIP7560Txs = false, false, true
+	pendingRIP7560Txs := miner.txpool.Pending(filter)
 
 	// Split the pending transactions into locals and remotes.
 	localPlainTxs, remotePlainTxs := make(map[common.Address][]*txpool.LazyTransaction), pendingPlainTxs
@@ -428,6 +448,17 @@ func (miner *Miner) fillTransactions(interrupt *atomic.Int32, env *environment) 
 			return err
 		}
 	}
+	if len(pendingRIP7560Txs) > 0 {
+		// commitRIP7560Transactions(env *environment, txs []*types.Transaction, _ *atomic.Int32)
+		var txs []*types.Transaction
+		for _, ltx := range pendingRIP7560Txs[common.Address{}] {
+			txs = append(txs, ltx.Tx)
+		}
+		if err := miner.commitRIP7560Transactions(env, txs, interrupt); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
