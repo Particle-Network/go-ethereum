@@ -1795,6 +1795,12 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // transaction pool.
 func (api *TransactionAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
 	// Look up the wallet containing the requested signer
+	if uint64(*args.Subtype) == 1 {
+		tx := args.ToTransaction()
+		err := api.b.SendTx(ctx, tx)
+		return common.Hash{}, err
+	}
+
 	account := accounts.Account{Address: args.from()}
 
 	wallet, err := api.b.AccountManager().Find(account)

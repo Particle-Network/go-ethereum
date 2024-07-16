@@ -97,7 +97,7 @@ func ApplyRIP7560Transaction(
 	index int,
 ) (*types.Transaction, *types.Receipt, []*types.Log, error) {
 
-	if transaction.Type() != types.Rip7560Type {
+	if transaction.Type() != types.RIP7560TxType {
 		return nil, nil, nil, fmt.Errorf("not RIP7560 transaction")
 	}
 

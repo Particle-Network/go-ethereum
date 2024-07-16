@@ -526,7 +526,7 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 		if dec.Nonce != nil {
 			inner = &depositTxWithNonce{DepositTx: itx, EffectiveNonce: uint64(*dec.Nonce)}
 		}
-	case Rip7560Type:
+	case RIP7560TxType:
 		var itx Rip7560AccountAbstractionTx
 		inner = &itx
 

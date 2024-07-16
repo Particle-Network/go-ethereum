@@ -18,10 +18,11 @@ package types
 
 import (
 	"bytes"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
-	"math/big"
 )
 
 const ScaTransactionSubtype = 0x01
@@ -103,7 +104,7 @@ func (tx *Rip7560AccountAbstractionTx) copy() TxData {
 }
 
 // accessors for innerTx.
-func (tx *Rip7560AccountAbstractionTx) txType() byte           { return Rip7560Type }
+func (tx *Rip7560AccountAbstractionTx) txType() byte           { return RIP7560TxType }
 func (tx *Rip7560AccountAbstractionTx) chainID() *big.Int      { return tx.ChainID }
 func (tx *Rip7560AccountAbstractionTx) accessList() AccessList { return tx.AccessList }
 func (tx *Rip7560AccountAbstractionTx) data() []byte           { return tx.Data }

@@ -80,7 +80,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
-		if tx.Type() == types.Rip7560Type {
+		if tx.Type() == types.RIP7560TxType {
 			_, receipt, logs, err := ApplyRIP7560Transaction(
 				p.config, p.chain, cfg, gp, statedb, &context.Coinbase, header, tx, 0)
 			receipts = append(receipts, receipt)

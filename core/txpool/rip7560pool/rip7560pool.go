@@ -131,7 +131,7 @@ func New(config Config, chain legacypool.BlockChain, coinbase common.Address) *R
 
 // Filter rejects all individual transactions for External Bundler AA sub pool.
 func (pool *RIP7560Pool) Filter(tx *types.Transaction) bool {
-	return tx.Type() == types.Rip7560Type
+	return tx.Type() == types.RIP7560TxType
 }
 
 func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, _ bool) []error {

@@ -129,7 +129,7 @@ func MustSignNewTx(prv *ecdsa.PrivateKey, s Signer, txdata TxData) *Transaction 
 // not match the signer used in the current call.
 func Sender(signer Signer, tx *Transaction) (common.Address, error) {
 	if sc := tx.from.Load(); sc != nil {
-		sigCache := sc.(sigCache)
+		sigCache := sc.(*sigCache)
 		// If the signer used to derive from in a previous
 		// call is not the same as used current, invalidate
 		// the cache.

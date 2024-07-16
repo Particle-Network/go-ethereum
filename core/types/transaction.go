@@ -49,7 +49,7 @@ const (
 	AccessListTxType = 0x01
 	DynamicFeeTxType = 0x02
 	BlobTxType       = 0x03
-	Rip7560Type      = 0x04
+	RIP7560TxType    = 0x04
 	// TODO: do we really need a new type?
 	Rip7560BundleHeaderType = 0x05
 )
@@ -218,7 +218,7 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		inner = new(DynamicFeeTx)
 	case BlobTxType:
 		inner = new(BlobTx)
-	case Rip7560Type:
+	case RIP7560TxType:
 		inner = new(Rip7560AccountAbstractionTx)
 	case Rip7560BundleHeaderType:
 		inner = new(Rip7560BundleHeaderTx)

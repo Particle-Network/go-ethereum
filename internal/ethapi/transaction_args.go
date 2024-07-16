@@ -74,6 +74,18 @@ type TransactionArgs struct {
 
 	// This configures whether blobs are allowed to be passed.
 	blobSidecarAllowed bool
+
+	// Introduced by RIP-7560 Transaction
+	Subtype       *hexutil.Uint64 `json:"subType"`
+	Sender        *common.Address `json:"sender"`
+	Signature     *hexutil.Bytes  `json:"signature"`
+	PaymasterData *hexutil.Bytes  `json:"paymasterData"`
+	DeployerData  *hexutil.Bytes  `json:"deployerData"`
+	BuilderFee    *hexutil.Big    `json:"builderFee"`
+	ValidationGas *hexutil.Uint64 `json:"validationGas"`
+	PaymasterGas  *hexutil.Uint64 `json:"paymasterGas"`
+	PostOpGas     *hexutil.Uint64 `json:"postOpGas"`
+	BigNonce      *hexutil.Big    `json:"bigNonce"`
 }
 
 // from retrieves the transaction sender address.
@@ -469,7 +481,7 @@ func (args *TransactionArgs) ToMessage(baseFee *big.Int) *core.Message {
 
 // ToTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
-func (args *TransactionArgs) ToTransaction() *types.Transaction {
+func (args *TransactionArgs) ToTransactionOld() *types.Transaction {
 	var data types.TxData
 	switch {
 	case args.BlobHashes != nil:
@@ -543,4 +555,147 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 // IsEIP4844 returns an indicator if the args contains EIP4844 fields.
 func (args *TransactionArgs) IsEIP4844() bool {
 	return args.BlobHashes != nil || args.BlobFeeCap != nil
+}
+
+func (args *TransactionArgs) ToTransaction() *types.Transaction {
+	var data types.TxData
+	switch {
+	case args.Sender != nil:
+		al := types.AccessList{}
+		if args.AccessList != nil {
+			al = *args.AccessList
+		}
+		aatx := types.Rip7560AccountAbstractionTx{
+			Subtype:    uint64(*args.Subtype),
+			To:         &common.Address{},
+			ChainID:    (*big.Int)(args.ChainID),
+			Gas:        uint64(*args.Gas),
+			GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
+			GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
+			Value:      (*big.Int)(args.Value),
+			Data:       args.data(),
+			AccessList: al,
+			// RIP-7560 parameters
+			Sender:        args.Sender,
+			Signature:     args.signature(),
+			PaymasterData: args.paymasterData(),
+			DeployerData:  args.deployerData(),
+			BuilderFee:    (*big.Int)(args.BuilderFee),
+			ValidationGas: args.validationGas(),
+			PaymasterGas:  args.paymasterGas(),
+			PostOpGas:     args.postOpGas(),
+			// RIP-7712 parameter
+			BigNonce: (*big.Int)(args.BigNonce),
+		}
+		data = &aatx
+		hash := types.NewTx(data).Hash()
+		log.Error("RIP-7560 transaction created", "sender", aatx.Sender.Hex(), "hash", hash)
+	case args.BlobHashes != nil:
+		al := types.AccessList{}
+		if args.AccessList != nil {
+			al = *args.AccessList
+		}
+		data = &types.BlobTx{
+			To:         *args.To,
+			ChainID:    uint256.MustFromBig((*big.Int)(args.ChainID)),
+			Nonce:      uint64(*args.Nonce),
+			Gas:        uint64(*args.Gas),
+			GasFeeCap:  uint256.MustFromBig((*big.Int)(args.MaxFeePerGas)),
+			GasTipCap:  uint256.MustFromBig((*big.Int)(args.MaxPriorityFeePerGas)),
+			Value:      uint256.MustFromBig((*big.Int)(args.Value)),
+			Data:       args.data(),
+			AccessList: al,
+			BlobHashes: args.BlobHashes,
+			BlobFeeCap: uint256.MustFromBig((*big.Int)(args.BlobFeeCap)),
+		}
+		if args.Blobs != nil {
+			data.(*types.BlobTx).Sidecar = &types.BlobTxSidecar{
+				Blobs:       args.Blobs,
+				Commitments: args.Commitments,
+				Proofs:      args.Proofs,
+			}
+		}
+
+	case args.MaxFeePerGas != nil:
+		al := types.AccessList{}
+		if args.AccessList != nil {
+			al = *args.AccessList
+		}
+		data = &types.DynamicFeeTx{
+			To:         args.To,
+			ChainID:    (*big.Int)(args.ChainID),
+			Nonce:      uint64(*args.Nonce),
+			Gas:        uint64(*args.Gas),
+			GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
+			GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
+			Value:      (*big.Int)(args.Value),
+			Data:       args.data(),
+			AccessList: al,
+		}
+
+	case args.AccessList != nil:
+		data = &types.AccessListTx{
+			To:         args.To,
+			ChainID:    (*big.Int)(args.ChainID),
+			Nonce:      uint64(*args.Nonce),
+			Gas:        uint64(*args.Gas),
+			GasPrice:   (*big.Int)(args.GasPrice),
+			Value:      (*big.Int)(args.Value),
+			Data:       args.data(),
+			AccessList: *args.AccessList,
+		}
+
+	default:
+		data = &types.LegacyTx{
+			To:       args.To,
+			Nonce:    uint64(*args.Nonce),
+			Gas:      uint64(*args.Gas),
+			GasPrice: (*big.Int)(args.GasPrice),
+			Value:    (*big.Int)(args.Value),
+			Data:     args.data(),
+		}
+	}
+	return types.NewTx(data)
+}
+
+func (args *TransactionArgs) signature() []byte {
+	if args.Signature != nil {
+		return *args.Signature
+	}
+	return nil
+}
+
+func (args *TransactionArgs) paymasterData() []byte {
+	if args.PaymasterData != nil {
+		return *args.PaymasterData
+	}
+	return nil
+}
+
+func (args *TransactionArgs) paymasterGas() uint64 {
+	if args.PaymasterGas != nil {
+		return uint64(*args.PaymasterGas)
+	}
+	return 0
+}
+
+func (args *TransactionArgs) validationGas() uint64 {
+	if args.ValidationGas != nil {
+		return uint64(*args.ValidationGas)
+	}
+	return 0
+}
+
+func (args *TransactionArgs) postOpGas() uint64 {
+	if args.PostOpGas != nil {
+		return uint64(*args.PostOpGas)
+	}
+	return 0
+}
+
+func (args *TransactionArgs) deployerData() []byte {
+	if args.DeployerData != nil {
+		return *args.DeployerData
+	}
+	return nil
 }
