@@ -1798,7 +1798,7 @@ func (api *TransactionAPI) SendTransaction(ctx context.Context, args Transaction
 	if uint64(*args.Subtype) == 1 {
 		tx := args.ToTransaction()
 		err := api.b.SendTx(ctx, tx)
-		return common.Hash{}, err
+		return tx.Hash(), err
 	}
 
 	account := accounts.Account{Address: args.from()}

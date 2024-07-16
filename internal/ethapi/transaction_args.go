@@ -589,7 +589,7 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 		}
 		data = &aatx
 		hash := types.NewTx(data).Hash()
-		log.Error("RIP-7560 transaction created", "sender", aatx.Sender.Hex(), "hash", hash)
+		log.Warn("RIP-7560 transaction created", "sender", aatx.Sender.Hex(), "hash", hash)
 	case args.BlobHashes != nil:
 		al := types.AccessList{}
 		if args.AccessList != nil {

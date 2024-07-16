@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type Config struct {
@@ -137,6 +138,8 @@ func (pool *RIP7560Pool) Filter(tx *types.Transaction) bool {
 func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, _ bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
+
+	log.Warn("RIP7560Pool Add", "count", len(txs))
 
 	var errs []error
 
