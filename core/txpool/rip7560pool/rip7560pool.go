@@ -138,9 +138,11 @@ func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, _ bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
+	var errs []error
+
 	pool.pending = append(pool.pending, txs...)
 
 	pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
 
-	return nil
+	return errs
 }
