@@ -111,7 +111,7 @@ func ApplyRIP7560Transaction(
 
 	statedb.SetTxContext(transaction.Hash(), 0)
 	log.Info("[RIP-7560] Validation Phase - BuyGas")
-	payment, prepaidGas, err := prepayGas(chainConfig, gp, header, transaction, statedb)
+	payment, prepaidGas, err := PrepayGas(chainConfig, gp, header, transaction, statedb)
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to prepayGas", "err", err)
 		return nil, nil, nil, err
@@ -164,7 +164,7 @@ func ApplyRIP7560Transaction(
 	return transaction, receipt, receipt.Logs, nil
 }
 
-func prepayGas(
+func PrepayGas(
 	chainConfig *params.ChainConfig,
 	gp *GasPool,
 	header *types.Header,
@@ -664,8 +664,10 @@ func validatePaymasterReturnData(data []byte) ([]byte, uint64, uint64, error) {
 	if len(validatePaymasterResult.Context) > MaxContextSize {
 		return nil, 0, 0, errors.New("paymaster returned context size too large")
 	}
+	log.Warn("[RIP-7560] validatePaymasterReturnData", "validatePaymasterResult.ValidationData", common.Bytes2Hex(validatePaymasterResult.ValidationData[:]))
 	magicExpected := common.Bytes2Hex(validatePaymasterResult.ValidationData[:20])
 	if magicExpected != common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]) {
+		log.Error("[RIP-7560] validatePaymasterReturnData invalid MAGIC_VALUE", "magicExpected", magicExpected, "receive", common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]))
 		return nil, 0, 0, errors.New("paymaster did not return correct MAGIC_VALUE")
 	}
 	validUntil := binary.BigEndian.Uint64(validatePaymasterResult.ValidationData[4:12])

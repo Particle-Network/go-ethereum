@@ -110,6 +110,7 @@ func (pool *RIP7560Pool) Pending(filter txpool.PendingFilter) map[common.Address
 
 	result := make(map[common.Address][]*txpool.LazyTransaction, 1)
 	result[common.Address{}] = pending
+	pool.pending = pool.pending[:0]
 	return result
 }
 
