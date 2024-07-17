@@ -21,8 +21,8 @@ import (
 
 var RIP7560TxBaseGas uint64 = 15000
 var EntryPointAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
-var DeployerCallerAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
-var NonceManagerAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
+var DeployerCallerAddress = common.HexToAddress("0x00000000000000000000000000000000ffff7560")
+var NonceManagerAddress = common.HexToAddress("0x0000000000000000000000000000000000007712") // some as 0x4200000000000000000000000000000000000024
 
 const MaxContextSize = 65536
 
@@ -239,6 +239,7 @@ func ApplyRIP7560ValidationPhases(
 		senderNonce := statedb.GetNonce(*txData.Sender)
 		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
 		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
+			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
 			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
 		} else if senderNonce == 0 {
 			deployerData := txData.DeployerData
@@ -472,6 +473,7 @@ func prepareNonceValidationMessage(baseTx *types.Transaction) *Message {
 		return nil
 	}
 
+	// call NonceManager fallback
 	nonceValidationData := make([]byte, 0)
 	nonceValidationData = append(nonceValidationData[:], tx.Sender.Bytes()...)
 	nonceValidationData = append(nonceValidationData[:], key...)
@@ -512,7 +514,11 @@ func prepareDeployerMessage(baseTx *types.Transaction, nonceValidationUsedGas ui
 	}
 }
 
-func prepareAccountValidationMessage(baseTx *types.Transaction, signingHash common.Hash, nonceValidationUsedGas, deploymentUsedGas uint64) (*Message, error) {
+func prepareAccountValidationMessage(
+	baseTx *types.Transaction,
+	signingHash common.Hash,
+	nonceValidationUsedGas,
+	deploymentUsedGas uint64) (*Message, error) {
 	tx := baseTx.Rip7560TransactionData()
 	jsondata := `[
 	{"type":"function","name":"validateTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
@@ -642,7 +648,7 @@ func validatePaymasterReturnData(data []byte) ([]byte, uint64, uint64, error) {
 	]`
 	validatePaymasterTransactionAbi, err := abi.JSON(strings.NewReader(jsondata))
 	if err != nil {
-		// todo: wrap error message
+		// TODO: wrap error message
 		return nil, 0, 0, err
 	}
 
