@@ -85,13 +85,13 @@ type Receipt struct {
 	TransactionIndex uint        `json:"transactionIndex"`
 
 	// Optimism: extend receipts with L1 fee info
-	L1GasPrice          *big.Int   `json:"l1GasPrice,omitempty"`          // Present from pre-bedrock. L1 Basefee after Bedrock
-	L1BlobBaseFee       *big.Int   `json:"l1BlobBaseFee,omitempty"`       // Always nil prior to the Ecotone hardfork
-	L1GasUsed           *big.Int   `json:"l1GasUsed,omitempty"`           // Present from pre-bedrock, deprecated as of Fjord
-	L1Fee               *big.Int   `json:"l1Fee,omitempty"`               // Present from pre-bedrock
-	FeeScalar           *big.Float `json:"l1FeeScalar,omitempty"`         // Present from pre-bedrock to Ecotone. Nil after Ecotone
-	L1BaseFeeScalar     *uint64    `json:"l1BaseFeeScalar,omitempty"`     // Always nil prior to the Ecotone hardfork
-	L1BlobBaseFeeScalar *uint64    `json:"l1BlobBaseFeeScalar,omitempty"` // Always nil prior to the Ecotone hardfork
+	// L1GasPrice          *big.Int   `json:"l1GasPrice,omitempty"`          // Present from pre-bedrock. L1 Basefee after Bedrock
+	// L1BlobBaseFee       *big.Int   `json:"l1BlobBaseFee,omitempty"`       // Always nil prior to the Ecotone hardfork
+	// L1GasUsed           *big.Int   `json:"l1GasUsed,omitempty"`           // Present from pre-bedrock, deprecated as of Fjord
+	// L1Fee               *big.Int   `json:"l1Fee,omitempty"`               // Present from pre-bedrock
+	// FeeScalar           *big.Float `json:"l1FeeScalar,omitempty"`         // Present from pre-bedrock to Ecotone. Nil after Ecotone
+	// L1BaseFeeScalar     *uint64    `json:"l1BaseFeeScalar,omitempty"`     // Always nil prior to the Ecotone hardfork
+	// L1BlobBaseFeeScalar *uint64    `json:"l1BlobBaseFeeScalar,omitempty"` // Always nil prior to the Ecotone hardfork
 }
 
 type receiptMarshaling struct {
@@ -107,13 +107,13 @@ type receiptMarshaling struct {
 	TransactionIndex  hexutil.Uint
 
 	// Optimism
-	L1GasPrice            *hexutil.Big
-	L1BlobBaseFee         *hexutil.Big
-	L1GasUsed             *hexutil.Big
-	L1Fee                 *hexutil.Big
-	FeeScalar             *big.Float
-	L1BaseFeeScalar       *hexutil.Uint64
-	L1BlobBaseFeeScalar   *hexutil.Uint64
+	// L1GasPrice            *hexutil.Big
+	// L1BlobBaseFee         *hexutil.Big
+	// L1GasUsed             *hexutil.Big
+	// L1Fee                 *hexutil.Big
+	// FeeScalar             *big.Float
+	// L1BaseFeeScalar       *hexutil.Uint64
+	// L1BlobBaseFeeScalar   *hexutil.Uint64
 	DepositNonce          *hexutil.Uint64
 	DepositReceiptVersion *hexutil.Uint64
 }
@@ -162,10 +162,10 @@ type LegacyOptimismStoredReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*LogForStorage
-	L1GasUsed         *big.Int
-	L1GasPrice        *big.Int
-	L1Fee             *big.Int
-	FeeScalar         string
+	// L1GasUsed         *big.Int
+	// L1GasPrice        *big.Int
+	// L1Fee             *big.Int
+	// FeeScalar         string
 }
 
 // LogForStorage is a wrapper around a Log that handles
@@ -432,10 +432,10 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	if err := decodeStoredReceiptRLP(r, blob); err == nil {
 		return nil
 	}
-	return decodeLegacyOptimismReceiptRLP(r, blob)
+	return decodeLegacyReceiptRLP(r, blob)
 }
 
-func decodeLegacyOptimismReceiptRLP(r *ReceiptForStorage, blob []byte) error {
+func decodeLegacyReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	var stored LegacyOptimismStoredReceiptRLP
 	if err := rlp.DecodeBytes(blob, &stored); err != nil {
 		return err
@@ -450,18 +450,18 @@ func decodeLegacyOptimismReceiptRLP(r *ReceiptForStorage, blob []byte) error {
 	}
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 	// UsingOVM
-	scalar := new(big.Float)
-	if stored.FeeScalar != "" {
-		var ok bool
-		scalar, ok = scalar.SetString(stored.FeeScalar)
-		if !ok {
-			return errors.New("cannot parse fee scalar")
-		}
-	}
-	r.L1GasUsed = stored.L1GasUsed
-	r.L1GasPrice = stored.L1GasPrice
-	r.L1Fee = stored.L1Fee
-	r.FeeScalar = scalar
+	// scalar := new(big.Float)
+	// if stored.FeeScalar != "" {
+	// 	var ok bool
+	// 	scalar, ok = scalar.SetString(stored.FeeScalar)
+	// 	if !ok {
+	// 		return errors.New("cannot parse fee scalar")
+	// 	}
+	// }
+	// r.L1GasUsed = stored.L1GasUsed
+	// r.L1GasPrice = stored.L1GasPrice
+	// r.L1Fee = stored.L1Fee
+	// r.FeeScalar = scalar
 	return nil
 }
 
@@ -595,10 +595,10 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 	return nil
 }
 
-func u32ptrTou64ptr(a *uint32) *uint64 {
-	if a == nil {
-		return nil
-	}
-	b := uint64(*a)
-	return &b
-}
+// func u32ptrTou64ptr(a *uint32) *uint64 {
+// 	if a == nil {
+// 		return nil
+// 	}
+// 	b := uint64(*a)
+// 	return &b
+// }

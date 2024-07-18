@@ -374,20 +374,38 @@ func (miner *Miner) commitTransactions(env *environment, plainTxs, blobTxs *tran
 }
 
 func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Transaction, _ *atomic.Int32) error {
-	gasLimit := env.header.GasLimit
-	if env.gasPool == nil {
-		env.gasPool = new(core.GasPool).AddGas(gasLimit)
-	}
-	_txs, receipts, _, err := core.HandleRIP7560Transactions(
-		miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, txs, 0)
+	// gasLimit := env.header.GasLimit
+	// if env.gasPool == nil {
+	// 	env.gasPool = new(core.GasPool).AddGas(gasLimit)
+	// }
 
-	if len(_txs) == 0 {
-		return nil
+	// _txs, receipts, _, err := core.HandleRIP7560Transactions(
+	// 	miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, txs, 0)
+	// env.txs = append(env.txs, _txs...)
+	// env.receipts = append(env.receipts, receipts...)
+
+	for i, tx := range txs {
+		totalGasLimit := tx.Gas() + tx.ValidationGas() + tx.PaymasterGas() + tx.PostOpGas() + 15000
+		if env.gasPool.Gas() < totalGasLimit {
+			log.Trace("Not enough gas left for transaction", "hash", tx.Hash, "left", env.gasPool.Gas(), "needed", tx.Gas())
+			continue
+		}
+
+		env.state.SetTxContext(tx.Hash(), env.tcount)
+		_, receipt, _, err := core.ApplyRIP7560Transaction(
+			miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, tx, i)
+
+		if err != nil {
+			log.Error("Failed to handleRip7560Transactions", "err", err)
+			continue
+		}
+
+		env.tcount++
+		env.txs = append(env.txs, tx)
+		env.receipts = append(env.receipts, receipt)
 	}
 
-	env.txs = append(env.txs, _txs...)
-	env.receipts = append(env.receipts, receipts...)
-	return err
+	return nil
 }
 
 // fillTransactions retrieves the pending transactions from the txpool and fills them

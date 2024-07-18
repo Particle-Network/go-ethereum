@@ -59,6 +59,8 @@ func HandleRIP7560Transactions(
 	logs := make([]*types.Log, 0)
 
 	for i, tx := range transactions {
+		statedb.SetTxContext(tx.Hash(), index+i)
+
 		_, receipt, _logs, err := ApplyRIP7560Transaction(chainConfig, chainCtx, vmConfig, gp, statedb, coinbase, header, tx, i)
 		if err != nil {
 			log.Error("Failed to handleRip7560Transactions", "err", err)
@@ -94,7 +96,7 @@ func ApplyRIP7560Transaction(
 	coinbase *common.Address,
 	header *types.Header,
 	transaction *types.Transaction,
-	index int,
+	txindex int,
 ) (*types.Transaction, *types.Receipt, []*types.Log, error) {
 
 	if transaction.Type() != types.RIP7560TxType {
@@ -109,7 +111,6 @@ func ApplyRIP7560Transaction(
 		prevGas  = gp.Gas()
 	)
 
-	statedb.SetTxContext(transaction.Hash(), 0)
 	log.Info("[RIP-7560] Validation Phase - BuyGas")
 	payment, prepaidGas, err := PrepayGas(chainConfig, gp, header, transaction, statedb)
 	if err != nil {
@@ -140,8 +141,7 @@ func ApplyRIP7560Transaction(
 	// It should be separated to implement the mempool-friendly AA RIP (number not assigned yet)
 
 	// TODO: this will miss all validation phase events - pass in 'vpr'
-	statedb.SetTxContext(vpr.Tx.Hash(), 0)
-	log.Info("[RIP-7560] Execution Phase", "i", 0)
+	// statedb.SetTxContext(vpr.Tx.Hash(), 0)
 	executionResult, paymasterPostOpResult, cumulativeGasUsed, err := ApplyRIP7560ExecutionPhase(
 		chainConfig, chain, vmConfig, gp, statedb, coinbase, header, vpr, vpr.Payment, vpr.PrepaidGas)
 
