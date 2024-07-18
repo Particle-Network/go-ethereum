@@ -374,10 +374,10 @@ func (miner *Miner) commitTransactions(env *environment, plainTxs, blobTxs *tran
 }
 
 func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Transaction, _ *atomic.Int32) error {
-	// gasLimit := env.header.GasLimit
-	// if env.gasPool == nil {
-	// 	env.gasPool = new(core.GasPool).AddGas(gasLimit)
-	// }
+	gasLimit := env.header.GasLimit
+	if env.gasPool == nil {
+		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+	}
 
 	// _txs, receipts, _, err := core.HandleRIP7560Transactions(
 	// 	miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, txs, 0)
