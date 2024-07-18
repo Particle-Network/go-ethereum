@@ -158,15 +158,15 @@ type storedReceiptRLP struct {
 // receipt. It will only exist in the database if it was migrated using the
 // migration tool. Nodes that sync using snap-sync will not have any of these
 // entries.
-type LegacyOptimismStoredReceiptRLP struct {
-	PostStateOrStatus []byte
-	CumulativeGasUsed uint64
-	Logs              []*LogForStorage
-	// L1GasUsed         *big.Int
-	// L1GasPrice        *big.Int
-	// L1Fee             *big.Int
-	// FeeScalar         string
-}
+// type LegacyOptimismStoredReceiptRLP struct {
+// 	PostStateOrStatus []byte
+// 	CumulativeGasUsed uint64
+// 	Logs              []*LogForStorage
+// 	// L1GasUsed         *big.Int
+// 	// L1GasPrice        *big.Int
+// 	// L1Fee             *big.Int
+// 	// FeeScalar         string
+// }
 
 // LogForStorage is a wrapper around a Log that handles
 // backward compatibility with prior storage formats.
@@ -329,7 +329,7 @@ func (r *Receipt) decodeTyped(b []byte) error {
 		return errShortTypedReceipt
 	}
 	switch b[0] {
-	case DynamicFeeTxType, AccessListTxType, BlobTxType, RIP7560TxType, Rip7560BundleHeaderType:
+	case DynamicFeeTxType, AccessListTxType, BlobTxType, RIP7560TxType:
 		var data receiptRLP
 		err := rlp.DecodeBytes(b[1:], &data)
 		if err != nil {
@@ -436,7 +436,7 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 }
 
 func decodeLegacyReceiptRLP(r *ReceiptForStorage, blob []byte) error {
-	var stored LegacyOptimismStoredReceiptRLP
+	var stored receiptRLP
 	if err := rlp.DecodeBytes(blob, &stored); err != nil {
 		return err
 	}
