@@ -76,7 +76,8 @@ func executeRIP7560Validation(
 		&opts.Header.Coinbase,
 		opts.Header,
 		tx,
-		signingHash)
+		signingHash,
+		true)
 
 	if err != nil {
 		if errors.Is(err, vm.ErrOutOfGas) {
@@ -154,21 +155,21 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	// There's a fairly high chance for the transaction to execute successfully
 	// with gasLimit set to the first execution's usedGas + gasRefund. Explicitly
 	// check that gas amount and use as a limit for the binary search.
-	optimisticGasLimit := (vpUsedGas + params.CallStipend) * 64 / 63
-	if optimisticGasLimit < hi {
-		vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, optimisticGasLimit, signingHash)
-		if err != nil {
-			// This should not happen under normal conditions since if we make it this far the
-			// transaction had run without error at least once before.
-			log.Error("Execution error in estimate gas", "err", err)
-			return 0, err
-		}
-		if vpr == nil {
-			lo = optimisticGasLimit
-		} else {
-			hi = optimisticGasLimit
-		}
-	}
+	// optimisticGasLimit := (vpUsedGas + params.CallStipend) * 64 / 63
+	// if optimisticGasLimit < hi {
+	// 	vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, optimisticGasLimit, signingHash)
+	// 	if err != nil {
+	// 		// This should not happen under normal conditions since if we make it this far the
+	// 		// transaction had run without error at least once before.
+	// 		log.Error("Execution error in estimate gas", "err", err)
+	// 		return 0, err
+	// 	}
+	// 	if vpr == nil {
+	// 		lo = optimisticGasLimit
+	// 	} else {
+	// 		hi = optimisticGasLimit
+	// 	}
+	// }
 	// Binary search for the smallest gas limit that allows the tx to execute successfully.
 	for lo+1 < hi {
 		if opts.ErrorRatio > 0 {
