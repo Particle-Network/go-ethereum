@@ -408,7 +408,7 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 	}
 
 	if len(txsCommited) > 0 {
-		miner.txpool.Add(txsCommited, true, false) // for RIP-7560, mean pop txs from prnding
+		miner.txpool.Add(txsCommited, false, true) // for RIP-7560, mean pop txs from prnding
 	}
 
 	return nil

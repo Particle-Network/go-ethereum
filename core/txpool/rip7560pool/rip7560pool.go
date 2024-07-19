@@ -167,7 +167,7 @@ func (pool *RIP7560Pool) Filter(tx *types.Transaction) bool {
 	return tx.Type() == types.RIP7560TxType
 }
 
-func (pool *RIP7560Pool) Add(txs []*types.Transaction, isCommitedOrDroped bool, _ bool) []error {
+func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, isCommitedOrDroped bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
