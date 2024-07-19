@@ -148,7 +148,7 @@ func ApplyRIP7560Transaction(
 	root := statedb.IntermediateRoot(true).Bytes()
 	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
 
-	// Set the receipt logs and create the bloom filter.
+	// // Set the receipt logs and create the bloom filter.
 	receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
 
 	if executionResult.Failed() || (paymasterPostOpResult != nil && paymasterPostOpResult.Failed()) {
@@ -156,6 +156,14 @@ func ApplyRIP7560Transaction(
 	} else {
 		receipt.Status = types.ReceiptStatusSuccessful
 	}
+
+	// receipt.TxHash = vpr.Tx.Hash()
+	// receipt.GasUsed = executionResult.UsedGas
+
+	// receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	// receipt.BlockHash = header.Hash()
+	// receipt.BlockNumber = header.Number
+	// receipt.TransactionIndex = uint(statedb.TxIndex())
 
 	if err != nil {
 		return nil, nil, nil, err
