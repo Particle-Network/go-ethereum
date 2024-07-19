@@ -193,11 +193,11 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		tx.setDecoded(&data, uint64(len(b)))
 		return nil
 	}
-	fmt.Println("TX", common.Bytes2Hex(b))
+	// fmt.Println("TX", common.Bytes2Hex(b))
 	// It's an EIP-2718 typed transaction envelope.
 	inner, err := tx.decodeTyped(b)
 	if err != nil {
-		fmt.Println(err)
+		// fmt.Println(err)
 		return err
 	}
 	tx.setDecoded(inner, uint64(len(b)))
@@ -209,7 +209,7 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 	if len(b) <= 1 {
 		return nil, errShortTypedTx
 	}
-	fmt.Println("decodeTyped", common.Bytes2Hex(b[0:2]))
+	// fmt.Println("decodeTyped", common.Bytes2Hex(b[0:2]))
 	var inner TxData
 	switch b[0] {
 	case AccessListTxType:

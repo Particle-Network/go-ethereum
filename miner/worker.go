@@ -383,6 +383,7 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 	// 	miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, txs, 0)
 	// env.txs = append(env.txs, _txs...)
 	// env.receipts = append(env.receipts, receipts...)
+	var txsCommited []*types.Transaction
 
 	for i, tx := range txs {
 		totalGasLimit := tx.Gas() + tx.ValidationGas() + tx.PaymasterGas() + tx.PostOpGas() + 15000
@@ -391,6 +392,7 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 			continue
 		}
 
+		txsCommited = append(txsCommited, tx)
 		env.state.SetTxContext(tx.Hash(), env.tcount)
 		_, receipt, _, err := core.ApplyRIP7560Transaction(
 			miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, tx, i)
@@ -403,6 +405,10 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 		env.tcount++
 		env.txs = append(env.txs, tx)
 		env.receipts = append(env.receipts, receipt)
+	}
+
+	if len(txsCommited) > 0 {
+		miner.txpool.Add(txsCommited, true, false) // for RIP-7560, mean pop txs from prnding
 	}
 
 	return nil
