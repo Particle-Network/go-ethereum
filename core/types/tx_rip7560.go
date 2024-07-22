@@ -47,6 +47,7 @@ type Rip7560AccountAbstractionTx struct {
 	ValidationGas uint64
 	PaymasterGas  uint64
 	PostOpGas     uint64
+	CallGas       uint64
 	BigNonce      *big.Int
 
 	// removed fields
@@ -55,7 +56,7 @@ type Rip7560AccountAbstractionTx struct {
 	Value *big.Int
 }
 
-func (tx *Rip7560AccountAbstractionTx) isSystemTx() bool { return false }
+// func (tx *Rip7560AccountAbstractionTx) isSystemTx() bool { return false }
 
 // copy creates a deep copy of the transaction data and initializes all fields.
 func (tx *Rip7560AccountAbstractionTx) copy() TxData {
@@ -79,6 +80,7 @@ func (tx *Rip7560AccountAbstractionTx) copy() TxData {
 		BuilderFee:    new(big.Int),
 		ValidationGas: tx.ValidationGas,
 		PaymasterGas:  tx.PaymasterGas,
+		CallGas:       tx.CallGas,
 		PostOpGas:     tx.PostOpGas,
 	}
 	copy(cpy.AccessList, tx.AccessList)
@@ -114,8 +116,9 @@ func (tx *Rip7560AccountAbstractionTx) gasTipCap() *big.Int    { return tx.GasTi
 func (tx *Rip7560AccountAbstractionTx) gasPrice() *big.Int     { return tx.GasFeeCap }
 func (tx *Rip7560AccountAbstractionTx) value() *big.Int        { return tx.Value }
 func (tx *Rip7560AccountAbstractionTx) nonce() uint64          { return tx.Nonce }
-func (tx *Rip7560AccountAbstractionTx) bigNonce() *big.Int     { return tx.BigNonce }
-func (tx *Rip7560AccountAbstractionTx) to() *common.Address    { return tx.To }
+
+// func (tx *Rip7560AccountAbstractionTx) bigNonce() *big.Int     { return tx.BigNonce }
+func (tx *Rip7560AccountAbstractionTx) to() *common.Address { return tx.To }
 
 func (tx *Rip7560AccountAbstractionTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
 	if baseFee == nil {
@@ -191,7 +194,7 @@ func (tx *Rip7560AccountAbstractionTx) AbiEncode() ([]byte, error) {
 		ValidationGasLimit:   big.NewInt(int64(tx.ValidationGas)),
 		PaymasterGasLimit:    big.NewInt(int64(tx.PaymasterGas)),
 		PostOpGasLimit:       big.NewInt(int64(tx.PostOpGas)),
-		CallGasLimit:         big.NewInt(int64(tx.Gas)),
+		CallGasLimit:         big.NewInt(int64(tx.CallGas)),
 		MaxFeePerGas:         tx.GasFeeCap,
 		MaxPriorityFeePerGas: tx.GasTipCap,
 		BuilderFee:           tx.BuilderFee,

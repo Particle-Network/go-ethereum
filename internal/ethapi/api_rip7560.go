@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/gasestimator"
@@ -11,11 +12,19 @@ import (
 )
 
 type RIP7560UsedGas struct {
+	Hash          common.Hash    `json:"hash"`
 	ValidationGas hexutil.Uint64 `json:"validationGas"`
 	ExecutionGas  hexutil.Uint64 `json:"executionGas"`
 }
 
-func DoEstimateRIP7560TransactionGas(ctx context.Context, b Backend, args TransactionArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides *StateOverride, gasCap uint64) (*RIP7560UsedGas, error) {
+// Return more details?
+func DoEstimateRIP7560TransactionGas(
+	ctx context.Context,
+	b Backend,
+	args TransactionArgs,
+	blockNrOrHash rpc.BlockNumberOrHash,
+	overrides *StateOverride,
+	gasCap uint64) (*RIP7560UsedGas, error) {
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return nil, err
@@ -54,6 +63,7 @@ func DoEstimateRIP7560TransactionGas(ctx context.Context, b Backend, args Transa
 	}
 
 	return &RIP7560UsedGas{
+		Hash:          tx.Hash(),
 		ValidationGas: hexutil.Uint64(vg),
 		ExecutionGas:  hexutil.Uint64(eg),
 	}, nil

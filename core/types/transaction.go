@@ -422,6 +422,13 @@ func (tx *Transaction) ValidationGas() uint64 {
 	return 0
 }
 
+func (tx *Transaction) CallGas() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.CallGas
+	}
+	return 0
+}
+
 func (tx *Transaction) PaymasterGas() uint64 {
 	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
 		return dep.PaymasterGas

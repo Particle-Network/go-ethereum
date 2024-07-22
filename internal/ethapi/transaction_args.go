@@ -84,6 +84,7 @@ type TransactionArgs struct {
 	BuilderFee    *hexutil.Big    `json:"builderFee"`
 	ValidationGas *hexutil.Uint64 `json:"validationGas"`
 	PaymasterGas  *hexutil.Uint64 `json:"paymasterGas"`
+	CallGas       *hexutil.Uint64 `json:"callGas"`
 	PostOpGas     *hexutil.Uint64 `json:"postOpGas"`
 	BigNonce      *hexutil.Big    `json:"bigNonce"`
 }
@@ -583,6 +584,7 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 			BuilderFee:    (*big.Int)(args.BuilderFee),
 			ValidationGas: args.validationGas(),
 			PaymasterGas:  args.paymasterGas(),
+			CallGas:       args.callGas(),
 			PostOpGas:     args.postOpGas(),
 			// RIP-7712 parameter
 			BigNonce: (*big.Int)(args.BigNonce),
@@ -682,6 +684,13 @@ func (args *TransactionArgs) paymasterGas() uint64 {
 func (args *TransactionArgs) validationGas() uint64 {
 	if args.ValidationGas != nil {
 		return uint64(*args.ValidationGas)
+	}
+	return 0
+}
+
+func (args *TransactionArgs) callGas() uint64 {
+	if args.CallGas != nil {
+		return uint64(*args.CallGas)
 	}
 	return 0
 }
