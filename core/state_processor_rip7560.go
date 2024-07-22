@@ -284,9 +284,12 @@ func ApplyRIP7560ValidationPhases(
 		deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
 	}
 
-	signer := types.MakeSigner(chainConfig, header.Number, header.Time)
+	signer := types.NewRIP7560Signer(chainConfig.ChainID)
 	signingHash := signer.Hash(tx)
 	// signingHash := common.Hash{}
+	txencode, _ := tx.MarshalBinary()
+	txencode = append([]byte{0x04, 0x00}, txencode[:]...)
+	log.Warn("[RIP-7560] Account Validation Frame", "txencode", common.Bytes2Hex(txencode), "hash", signingHash)
 
 	/*** Account Validation Frame ***/
 	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())

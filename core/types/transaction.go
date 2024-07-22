@@ -193,7 +193,7 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		tx.setDecoded(&data, uint64(len(b)))
 		return nil
 	}
-	// fmt.Println("TX", common.Bytes2Hex(b))
+	fmt.Println("TX", common.Bytes2Hex(b))
 	// It's an EIP-2718 typed transaction envelope.
 	inner, err := tx.decodeTyped(b)
 	if err != nil {
