@@ -38,8 +38,7 @@ func executeRIP7560Validation(
 	ctx context.Context,
 	opts *Options,
 	tx *types.Transaction,
-	gasLimit uint64,
-	signingHash common.Hash) (*core.ValidationPhaseResult, *state.StateDB, error) {
+	gasLimit uint64) (*core.ValidationPhaseResult, *state.StateDB, error) {
 	st := tx.Rip7560TransactionData()
 	// Configure the call for this specific execution (and revert the change after)
 	defer func(gas uint64) { st.ValidationGas = gas }(st.ValidationGas)
@@ -76,7 +75,6 @@ func executeRIP7560Validation(
 		&opts.Header.Coinbase,
 		opts.Header,
 		tx,
-		signingHash,
 		true)
 
 	if err != nil {
@@ -90,8 +88,8 @@ func executeRIP7560Validation(
 
 func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (uint64, error) {
 	// First calculate the tx hash
-	signer := types.MakeSigner(opts.Config, opts.Header.Number, opts.Header.Time)
-	signingHash := signer.Hash(tx)
+	// signer := types.MakeSigner(opts.Config, opts.Header.Number, opts.Header.Time)
+	// signingHash := signer.Hash(tx)
 	// Binary search the gas limit, as it may need to be higher than the amount used
 	st := tx.Rip7560TransactionData()
 	gasLimit := st.ValidationGas + st.PaymasterGas + RIP7560TxBaseGas
@@ -138,7 +136,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 
 	// We first execute the transaction at the highest allowable gas limit, since if this fails we
 	// can return error immediately.
-	vpr, statedb, err := executeRIP7560Validation(ctx, opts, tx, hi, signingHash)
+	vpr, statedb, err := executeRIP7560Validation(ctx, opts, tx, hi)
 	if err != nil {
 		return 0, err
 	} else if vpr == nil && err == nil {
@@ -188,7 +186,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 			// range here is skewed to favor the low side.
 			mid = lo * 2
 		}
-		vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, mid, signingHash)
+		vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, mid)
 		if err != nil {
 			// This should not happen under normal conditions since if we make it this far the
 			// transaction had run without error at least once before.
