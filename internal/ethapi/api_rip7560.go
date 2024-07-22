@@ -4,11 +4,17 @@ import (
 	"context"
 	"math"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/gasestimator"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+type RIP7560TxSignatureHash struct {
+	Hash common.Hash `json:"hash"`
+}
 
 type RIP7560UsedGas struct {
 	// Hash          common.Hash    `json:"hash"`
@@ -85,4 +91,15 @@ func (s *BlockChainAPI) EstimateRIP7560TransactionGas(ctx context.Context, args 
 	// }
 
 	return DoEstimateRIP7560TransactionGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
+}
+
+func (s *BlockChainAPI) SignatureHash(ctx context.Context, args TransactionArgs) (*RIP7560TxSignatureHash, error) {
+	tx := args.ToTransaction()
+	chainConfig := s.b.ChainConfig()
+	signer := types.NewRIP7560Signer(chainConfig.ChainID)
+	signingHash := signer.Hash(tx)
+
+	return &RIP7560TxSignatureHash{
+		Hash: signingHash,
+	}, nil
 }
