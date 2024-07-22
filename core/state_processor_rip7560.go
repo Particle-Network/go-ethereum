@@ -121,10 +121,8 @@ func ApplyRIP7560Transaction(
 
 	var vpr *ValidationPhaseResult
 	log.Info("[RIP-7560] Validation Phase - Validation")
-	signer := types.MakeSigner(chainConfig, header.Number, header.Time)
-	signingHash := signer.Hash(transaction)
 
-	vpr, err = ApplyRIP7560ValidationPhases(chainConfig, chain, vmConfig, gp, statedb, coinbase, header, transaction, signingHash, false)
+	vpr, err = ApplyRIP7560ValidationPhases(chainConfig, chain, vmConfig, gp, statedb, coinbase, header, transaction, false)
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to ApplyRIP7560ValidationPhases", "err", err)
 		// If an error occurs in the validation phase, invalidate the transaction
@@ -218,7 +216,6 @@ func ApplyRIP7560ValidationPhases(
 	coinbase *common.Address,
 	header *types.Header,
 	tx *types.Transaction,
-	signingHash common.Hash,
 	isEstimate bool) (*ValidationPhaseResult, error) {
 	blockContext := NewEVMBlockContext(header, chainCtx, coinbase)
 
@@ -287,19 +284,25 @@ func ApplyRIP7560ValidationPhases(
 		deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
 	}
 
+	// signer := types.MakeSigner(chainConfig, header.Number, header.Time)
+	// signingHash := signer.Hash(tx)
+
 	/*** Account Validation Frame ***/
+	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, signingHash, nonceValidationUsedGas, deploymentUsedGas, isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, tx.Hash(), nonceValidationUsedGas, deploymentUsedGas, isEstimate)
 
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "err", err)
+		return nil, err
 	}
 
 	/*** Paymaster Validation Frame ***/
 	paymasterContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, err := applyPaymasterValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, signingHash, isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, tx.Hash(), isEstimate)
 	if err != nil {
 		log.Error("[RIP-7560] Paymaster Validation Frame", "err", err)
+		return nil, err
 	}
 	vpr := &ValidationPhaseResult{
 		Tx:                     tx,
