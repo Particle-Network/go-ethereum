@@ -284,13 +284,14 @@ func ApplyRIP7560ValidationPhases(
 		deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
 	}
 
-	// signer := types.MakeSigner(chainConfig, header.Number, header.Time)
-	// signingHash := signer.Hash(tx)
+	signer := types.MakeSigner(chainConfig, header.Number, header.Time)
+	signingHash := signer.Hash(tx)
+	// signingHash := common.Hash{}
 
 	/*** Account Validation Frame ***/
 	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, tx.Hash(), nonceValidationUsedGas, deploymentUsedGas, isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, signingHash, nonceValidationUsedGas, deploymentUsedGas, isEstimate)
 
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "err", err)
@@ -299,7 +300,7 @@ func ApplyRIP7560ValidationPhases(
 
 	/*** Paymaster Validation Frame ***/
 	paymasterContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, err := applyPaymasterValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, tx.Hash(), isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, signingHash, isEstimate)
 	if err != nil {
 		log.Error("[RIP-7560] Paymaster Validation Frame", "err", err)
 		return nil, err
@@ -588,6 +589,7 @@ func prepareAccountValidationMessage(
 	if err != nil {
 		return nil, err
 	}
+	log.Warn("[RIP-7560] prepareAccountValidationMessage", "signingHash", signingHash, "validateTransactionData", common.Bytes2Hex(validateTransactionData))
 
 	return &Message{
 		From:              EntryPointAddress,

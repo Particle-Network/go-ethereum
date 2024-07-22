@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/gasestimator"
@@ -12,7 +11,7 @@ import (
 )
 
 type RIP7560UsedGas struct {
-	Hash          common.Hash    `json:"hash"`
+	// Hash          common.Hash    `json:"hash"`
 	ValidationGas hexutil.Uint64 `json:"validationGas"`
 	ExecutionGas  hexutil.Uint64 `json:"executionGas"`
 }
@@ -63,7 +62,7 @@ func DoEstimateRIP7560TransactionGas(
 	}
 
 	return &RIP7560UsedGas{
-		Hash:          tx.Hash(),
+		// Hash:          tx.Hash(),
 		ValidationGas: hexutil.Uint64(vg),
 		ExecutionGas:  hexutil.Uint64(eg),
 	}, nil
