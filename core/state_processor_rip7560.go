@@ -347,17 +347,23 @@ func applyAccountValidationFrame(
 	}
 	if result.Err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "result.Err", result.Err)
-		return 0, 0, 0, result.Err
+		if !isEstimate {
+			return 0, 0, 0, result.Err
+		}
 	}
-	validAfter, validUntil, err := validateAccountReturnData(result.ReturnData, isEstimate)
+	validAfter, validUntil, err := validateAccountReturnData(result.ReturnData)
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "validateAccountReturnData.Err", err)
-		return 0, 0, 0, err
+		if !isEstimate {
+			return 0, 0, 0, err
+		}
 	}
 	err = validateValidityTimeRange(header.Time, validAfter, validUntil)
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "validateValidityTimeRange.Err", err)
-		return 0, 0, 0, err
+		if !isEstimate {
+			return 0, 0, 0, err
+		}
 	}
 	return result.UsedGas, validAfter, validUntil, nil
 }
@@ -393,15 +399,20 @@ func applyPaymasterValidationFrame(
 			return nil, 0, 0, 0, errors.New("paymaster validation failed - invalid transaction")
 		}
 		pmValidationUsedGas = resultPm.UsedGas
-		pmContext, pmValidAfter, pmValidUntil, err = validatePaymasterReturnData(resultPm.ReturnData, isEstimate)
+		pmContext, pmValidAfter, pmValidUntil, err = validatePaymasterReturnData(resultPm.ReturnData)
 		if err != nil {
 			log.Error("[RIP-7560] Paymaster Validation Frame", "validatePaymasterReturnData.err", err)
-			return nil, 0, 0, 0, err
+			// return nil, 0, 0, 0, err
+			if !isEstimate {
+				return nil, 0, 0, 0, err
+			}
 		}
 		err = validateValidityTimeRange(header.Time, pmValidAfter, pmValidUntil)
 		if err != nil {
 			log.Error("[RIP-7560] Paymaster Validation Frame", "validateValidityTimeRange.err", err)
-			return nil, 0, 0, 0, err
+			if !isEstimate {
+				return nil, 0, 0, 0, err
+			}
 		}
 	}
 	return pmContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, nil
@@ -675,17 +686,18 @@ func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult, exe
 	}, nil
 }
 
-func validateAccountReturnData(data []byte, isEstimate bool) (uint64, uint64, error) {
+func validateAccountReturnData(data []byte) (uint64, uint64, error) {
 	var MAGIC_VALUE_SENDER = [20]byte{0xbf, 0x45, 0xc1, 0x66}
 	if len(data) != 32 {
 		return 0, 0, errors.New("invalid account return data length")
 	}
 	// when estimate gas, skip check
-	if !isEstimate {
-		magicExpected := common.Bytes2Hex(data[:20])
-		if magicExpected != common.Bytes2Hex(MAGIC_VALUE_SENDER[:]) {
-			return 0, 0, errors.New("account did not return correct MAGIC_VALUE")
-		}
+
+	magicExpected := common.Bytes2Hex(data[:20])
+	if magicExpected != common.Bytes2Hex(MAGIC_VALUE_SENDER[:]) {
+		log.Error("[RIP-7560] validateAccountReturnData invalid MAGIC_VALUE", "receive", magicExpected, "MAGIC_VALUE_SENDER", common.Bytes2Hex(MAGIC_VALUE_SENDER[:]))
+
+		return 0, 0, errors.New("account did not return correct MAGIC_VALUE")
 	}
 
 	validUntil := binary.BigEndian.Uint64(data[4:12])
@@ -693,7 +705,7 @@ func validateAccountReturnData(data []byte, isEstimate bool) (uint64, uint64, er
 	return validAfter, validUntil, nil
 }
 
-func validatePaymasterReturnData(data []byte, isEstimate bool) ([]byte, uint64, uint64, error) {
+func validatePaymasterReturnData(data []byte) ([]byte, uint64, uint64, error) {
 	var MAGIC_VALUE_PAYMASTER = [20]byte{0xe0, 0xe6, 0x18, 0x3a}
 	jsondata := `[
 		{"type": "function","name": "validatePaymasterTransaction","outputs": [{"name": "validationData","type": "bytes32"},{"name": "context","type": "bytes"}]}
@@ -716,12 +728,11 @@ func validatePaymasterReturnData(data []byte, isEstimate bool) ([]byte, uint64, 
 	if len(validatePaymasterResult.Context) > MaxContextSize {
 		return nil, 0, 0, errors.New("paymaster returned context size too large")
 	}
-	if !isEstimate {
-		magicExpected := common.Bytes2Hex(validatePaymasterResult.ValidationData[:20])
-		if magicExpected != common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]) {
-			log.Error("[RIP-7560] validatePaymasterReturnData invalid MAGIC_VALUE", "magicExpected", magicExpected, "receive", common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]))
-			return nil, 0, 0, errors.New("paymaster did not return correct MAGIC_VALUE")
-		}
+
+	magicExpected := common.Bytes2Hex(validatePaymasterResult.ValidationData[:20])
+	if magicExpected != common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]) {
+		log.Error("[RIP-7560] validatePaymasterReturnData invalid MAGIC_VALUE", "receive", magicExpected, "MAGIC_VALUE_PAYMASTER", common.Bytes2Hex(MAGIC_VALUE_PAYMASTER[:]))
+		return nil, 0, 0, errors.New("paymaster did not return correct MAGIC_VALUE")
 	}
 
 	validUntil := binary.BigEndian.Uint64(validatePaymasterResult.ValidationData[4:12])
