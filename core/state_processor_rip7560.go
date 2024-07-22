@@ -107,8 +107,8 @@ func ApplyRIP7560Transaction(
 	// However, in the unlikely event that something goes wrong,
 	// we will revert to the previous state and invalidate the transaction.
 	var (
-		snapshot = statedb.Snapshot()
-		prevGas  = gp.Gas()
+		// snapshot = statedb.Snapshot()
+		prevGas = gp.Gas()
 	)
 
 	statedb.SetTxContext(transaction.Hash(), txindex)
@@ -126,7 +126,7 @@ func ApplyRIP7560Transaction(
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to ApplyRIP7560ValidationPhases", "err", err)
 		// If an error occurs in the validation phase, invalidate the transaction
-		statedb.RevertToSnapshot(snapshot)
+		// statedb.RevertToSnapshot(snapshot)
 		gp.SetGas(prevGas)
 		return nil, nil, nil, err
 	}
@@ -285,11 +285,11 @@ func ApplyRIP7560ValidationPhases(
 	}
 
 	signer := types.NewRIP7560Signer(chainConfig.ChainID)
-	signingHash := signer.Hash(tx)
+	signingHash := common.Hash{}
+	if isEstimate {
+		signingHash = signer.Hash(tx)
+	}
 	// signingHash := common.Hash{}
-	// txencode, _ := tx.MarshalBinary()
-	// txencode = append([]byte{0x04, 0x00}, txencode[:]...)
-	// log.Warn("[RIP-7560] Account Validation Frame", "txencode", common.Bytes2Hex(txencode), "hash", signingHash)
 
 	/*** Account Validation Frame ***/
 	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
@@ -437,7 +437,7 @@ func ApplyRIP7560ExecutionPhase(
 	// revert back here if postOp fails
 	var snapshot = statedb.Snapshot()
 	blockContext := NewEVMBlockContext(header, chainCtx, coinbase)
-	message, err := TransactionToMessage(vpr.Tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
+	message, _ := TransactionToMessage(vpr.Tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	txContext := NewEVMTxContext(message)
 	txContext.Origin = *vpr.Tx.Rip7560TransactionData().Sender
 	evm := vm.NewEVM(blockContext, txContext, statedb, config, vmConfig)
