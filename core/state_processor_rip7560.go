@@ -286,7 +286,7 @@ func ApplyRIP7560ValidationPhases(
 
 	signer := types.NewRIP7560Signer(chainConfig.ChainID)
 	signingHash := common.Hash{}
-	if isEstimate {
+	if !isEstimate {
 		signingHash = signer.Hash(tx)
 	}
 	// signingHash := common.Hash{}
