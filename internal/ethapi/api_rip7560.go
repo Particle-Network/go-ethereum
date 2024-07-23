@@ -77,7 +77,7 @@ func DoEstimateRIP7560TransactionGas(
 		NonceValidationGas:     hexutil.Uint64(vpr.NonceValidationUsedGas),
 		DeploymentGas:          hexutil.Uint64(vpr.DeploymentUsedGas),
 		AccountValidationGas:   hexutil.Uint64(vpr.ValidationUsedGas),
-		PaymasterValidationGas: hexutil.Uint64(vpr.PmValidationUsedGas * 2),
+		PaymasterValidationGas: hexutil.Uint64(vpr.PmValidationUsedGas),
 		CallGas:                hexutil.Uint64(callGas),
 		PostOpGas:              hexutil.Uint64(postOpGas),
 	}, nil
