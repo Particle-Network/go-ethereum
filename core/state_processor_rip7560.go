@@ -110,6 +110,7 @@ func ApplyRIP7560Transaction(
 		snapshot = statedb.Snapshot()
 		prevGas  = gp.Gas()
 	)
+	log.Info("[RIP-7560] ApplyRIP7560Transaction", "snapshot", snapshot)
 
 	statedb.SetTxContext(transaction.Hash(), txindex)
 	log.Info("[RIP-7560] Validation Phase - BuyGas")
