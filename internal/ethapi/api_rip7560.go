@@ -17,7 +17,7 @@ type RIP7560TxSignatureHash struct {
 }
 
 type RIP7560UsedGas struct {
-	BaseGas                hexutil.Uint64 `json:"BaseGas"`
+	BaseGas                hexutil.Uint64 `json:"baseGas"`
 	NonceValidationGas     hexutil.Uint64 `json:"nonceValidationGas"`
 	DeploymentGas          hexutil.Uint64 `json:"deploymentGas"`
 	AccountValidationGas   hexutil.Uint64 `json:"accountValidationGas"`
