@@ -115,7 +115,7 @@ func (al *accessList) DeleteSlot(address common.Address, slot common.Hash) {
 	if !addrOk {
 		panic("reverting slot change, address not present in list")
 	}
-	if len(al.slots) <= idx {
+	if idx > len(al.slots)-1 || idx < 0 {
 		return
 	}
 	slotmap := al.slots[idx]
