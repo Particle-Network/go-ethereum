@@ -180,7 +180,8 @@ func PrepayGas(
 	state vm.StateDB) (*common.Address, *uint256.Int, error) {
 
 	txData := tx.Rip7560TransactionData()
-	gasLimit := txData.Gas + txData.ValidationGas + txData.PaymasterGas + txData.PostOpGas + RIP7560TxBaseGas
+	gasLimit := txData.Gas
+	// + txData.ValidationGas + txData.PaymasterGas + txData.PostOpGas + RIP7560TxBaseGas
 	// Store prepaid values in gas units
 	gasNeed := new(uint256.Int).SetUint64(gasLimit)
 	// adjust effectiveGasPrice
@@ -512,7 +513,7 @@ func applyPaymasterPostOpFrame(
 	evm *vm.EVM,
 	gp *GasPool) (*ExecutionResult, error) {
 	var paymasterPostOpResult *ExecutionResult
-	paymasterPostOpMsg, err := preparePostOpMessage(evm.ChainConfig(), vpr, executionResult)
+	paymasterPostOpMsg, err := preparePostOpMessage(evm.ChainConfig(), vpr)
 	if err != nil {
 		return nil, err
 	}
@@ -663,7 +664,7 @@ func prepareAccountExecutionMessage(_ *params.ChainConfig, baseTx *types.Transac
 	}
 }
 
-func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult, executionResult *ExecutionResult) (*Message, error) {
+func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult) (*Message, error) {
 	if len(vpr.PaymasterContext) == 0 {
 		return nil, nil
 	}
@@ -685,7 +686,7 @@ func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult, exe
 		From:              EntryPointAddress,
 		To:                &paymasterAddress,
 		Value:             big.NewInt(0),
-		GasLimit:          tx.PaymasterGas - executionResult.UsedGas,
+		GasLimit:          tx.PostOpGas,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,

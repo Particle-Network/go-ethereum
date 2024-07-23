@@ -386,7 +386,7 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 	var txsCommited []*types.Transaction
 
 	for i, tx := range txs {
-		totalGasLimit := tx.Gas() + tx.ValidationGas() + tx.PaymasterGas() + tx.PostOpGas() + 15000
+		totalGasLimit := tx.Gas()
 		if env.gasPool.Gas() < totalGasLimit {
 			log.Trace("Not enough gas left for transaction", "hash", tx.Hash, "left", env.gasPool.Gas(), "needed", tx.Gas())
 			continue
