@@ -139,7 +139,7 @@ func ApplyRIP7560Transaction(
 	// *** This is the line separating the Validation and Execution phases *** //
 	// It should be separated to implement the mempool-friendly AA RIP (number not assigned yet)
 
-	// TODO: this will miss all validation phase events - pass in 'vpr'
+	// TIP: this will miss all validation phase events - pass in 'vpr'
 	statedb.SetTxContext(vpr.Tx.Hash(), txindex+2000)
 	executionResult, paymasterPostOpResult, cumulativeGasUsed, err := ApplyRIP7560ExecutionPhase(
 		chainConfig, chain, vmConfig, gp, statedb, coinbase, header, vpr, vpr.Payment, vpr.PrepaidGas)

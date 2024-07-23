@@ -17,12 +17,17 @@ type RIP7560TxSignatureHash struct {
 }
 
 type RIP7560UsedGas struct {
-	// Hash          common.Hash    `json:"hash"`
-	ValidationGas hexutil.Uint64 `json:"validationGas"`
-	ExecutionGas  hexutil.Uint64 `json:"executionGas"`
+	BaseGas                hexutil.Uint64 `json:"BaseGas"`
+	NonceValidationGas     hexutil.Uint64 `json:"nonceValidationGas"`
+	DeploymentGas          hexutil.Uint64 `json:"deploymentGas"`
+	AccountValidationGas   hexutil.Uint64 `json:"accountValidationGas"`
+	PaymasterValidationGas hexutil.Uint64 `json:"paymasterValidationGas"`
+	// ValidationGas hexutil.Uint64 `json:"validationGas"`
+	// ExecutionGas  hexutil.Uint64 `json:"executionGas"`
+	CallGas   hexutil.Uint64 `json:"callGas"`
+	PostOpGas hexutil.Uint64 `json:"postOpGas"`
 }
 
-// Return more details?
 func DoEstimateRIP7560TransactionGas(
 	ctx context.Context,
 	b Backend,
@@ -57,20 +62,24 @@ func DoEstimateRIP7560TransactionGas(
 		PrepaidGas: prepaidGas,
 	}
 
-	vg, err := gasestimator.EstimateRIP7560Validation(ctx, tx, opts, gasCap)
+	vpr, err := gasestimator.EstimateRIP7560Validation(ctx, tx, opts, gasCap)
 	if err != nil {
 		return nil, err
 	}
 
-	eg, _, err := gasestimator.EstimateRIP7560Execution(ctx, tx, opts, gasCap)
+	_, callGas, postOpGas, _, err := gasestimator.EstimateRIP7560Execution(ctx, tx, opts, gasCap)
 	if err != nil {
 		return nil, err
 	}
 
 	return &RIP7560UsedGas{
-		// Hash:          tx.Hash(),
-		ValidationGas: hexutil.Uint64(vg),
-		ExecutionGas:  hexutil.Uint64(eg),
+		BaseGas:                15000,
+		NonceValidationGas:     hexutil.Uint64(vpr.NonceValidationUsedGas),
+		DeploymentGas:          hexutil.Uint64(vpr.DeploymentUsedGas),
+		AccountValidationGas:   hexutil.Uint64(vpr.ValidationUsedGas),
+		PaymasterValidationGas: hexutil.Uint64(vpr.PmValidationUsedGas),
+		CallGas:                hexutil.Uint64(callGas),
+		PostOpGas:              hexutil.Uint64(postOpGas),
 	}, nil
 }
 
@@ -79,16 +88,6 @@ func (s *BlockChainAPI) EstimateRIP7560TransactionGas(ctx context.Context, args 
 	if blockNrOrHash != nil {
 		bNrOrHash = *blockNrOrHash
 	}
-
-	// TODO: Configure RIP-7560 enabled devnet option
-	// header, err := headerByNumberOrHash(ctx, s.b, bNrOrHash)
-	// if err != nil {
-	// 	return 0, err
-	// }
-
-	// if s.b.ChainConfig().IsRIP7560(header.Number) {
-	// 	return 0, fmt.Errorf("cannot estimate gas for RIP-7560 tx on pre-bedrock block %v", header.Number)
-	// }
 
 	return DoEstimateRIP7560TransactionGas(ctx, s.b, args, bNrOrHash, overrides, s.b.RPCGasCap())
 }

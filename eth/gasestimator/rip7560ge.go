@@ -86,7 +86,7 @@ func executeRIP7560Validation(
 	return vpr, dirtyState, nil
 }
 
-func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (uint64, error) {
+func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (*core.ValidationPhaseResult, error) {
 	// First calculate the tx hash
 	// signer := types.MakeSigner(opts.Config, opts.Header.Number, opts.Header.Time)
 	// signingHash := signer.Hash(tx)
@@ -138,9 +138,9 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	// can return error immediately.
 	vpr, statedb, err := executeRIP7560Validation(ctx, opts, tx, hi)
 	if err != nil {
-		return 0, err
+		return nil, err
 	} else if vpr == nil && err == nil {
-		return 0, fmt.Errorf("gas required exceeds allowance (%d)", hi)
+		return nil, fmt.Errorf("gas required exceeds allowance (%d)", hi)
 	}
 	// For almost any transaction, the gas consumed by the unconstrained execution
 	// above lower-bounds the gas limit required for it to succeed. One exception
@@ -191,7 +191,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 			// This should not happen under normal conditions since if we make it this far the
 			// transaction had run without error at least once before.
 			log.Error("Execution error in estimate gas", "err", err)
-			return 0, err
+			return nil, err
 		}
 		if vpr == nil {
 			lo = mid
@@ -202,7 +202,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 
 	opts.ValidationPhaseResult = vpr
 	opts.State = statedb
-	return hi, nil
+	return vpr, nil
 }
 
 func executeRIP7560Execution(
@@ -259,7 +259,7 @@ func executeRIP7560Execution(
 	return false, exr, ppr, nil
 }
 
-func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (uint64, []byte, error) {
+func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (uint64, uint64, uint64, []byte, error) {
 	// Binary search the gas limit, as it may need to be higher than the amount used
 	st := tx.Rip7560TransactionData()
 	gasLimit := st.Gas + st.PostOpGas
@@ -308,52 +308,56 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 	// can return error immediately.
 	failed, exr, ppr, err := executeRIP7560Execution(ctx, opts, tx, hi)
 	if err != nil {
-		return 0, nil, err
+		return 0, 0, 0, nil, err
 	}
 	if failed {
 		if exr != nil && ppr != nil {
 			if !errors.Is(exr.Err, vm.ErrOutOfGas) {
-				return 0, exr.Revert(), exr.Err
+				return 0, 0, 0, exr.Revert(), exr.Err
 			} else if !errors.Is(ppr.Err, vm.ErrOutOfGas) {
-				return 0, ppr.Revert(), ppr.Err
+				return 0, 0, 0, ppr.Revert(), ppr.Err
 			}
 		}
-		return 0, nil, fmt.Errorf("gas required exceeds allowance (%d)", hi)
+		return 0, 0, 0, nil, fmt.Errorf("gas required exceeds allowance (%d)", hi)
 	}
 	// For almost any transaction, the gas consumed by the unconstrained execution
 	// above lower-bounds the gas limit required for it to succeed. One exception
 	// is those that explicitly check gas remaining in order to execute within a
 	// given limit, but we probably don't want to return the lowest possible gas
 	// limit for these cases anyway.
+	callGas := exr.UsedGas
+	postOpGas := uint64(0)
 	if ppr == nil {
 		lo = exr.UsedGas - 1
 	} else {
 		lo = exr.UsedGas + ppr.UsedGas - 1
+		postOpGas = ppr.UsedGas
 	}
 
 	// There's a fairly high chance for the transaction to execute successfully
 	// with gasLimit set to the first execution's usedGas + gasRefund. Explicitly
 	// check that gas amount and use as a limit for the binary search.
-	var optimisticGasLimit uint64
-	if ppr == nil {
-		optimisticGasLimit = (exr.UsedGas + exr.RefundedGas + params.CallStipend) * 64 / 63
-	} else {
-		optimisticGasLimit = (exr.UsedGas + exr.RefundedGas + ppr.UsedGas + ppr.RefundedGas + params.CallStipend) * 64 / 63
-	}
-	if optimisticGasLimit < hi {
-		failed, _, _, err = executeRIP7560Execution(ctx, opts, tx, optimisticGasLimit)
-		if err != nil {
-			// This should not happen under normal conditions since if we make it this far the
-			// transaction had run without error at least once before.
-			log.Error("Execution error in estimate gas", "err", err)
-			return 0, nil, err
-		}
-		if failed {
-			lo = optimisticGasLimit
-		} else {
-			hi = optimisticGasLimit
-		}
-	}
+	// var optimisticGasLimit uint64
+	// if ppr == nil {
+	// 	optimisticGasLimit = (exr.UsedGas + exr.RefundedGas + params.CallStipend) * 64 / 63
+	// } else {
+	// 	optimisticGasLimit = (exr.UsedGas + exr.RefundedGas + ppr.UsedGas + ppr.RefundedGas + params.CallStipend) * 64 / 63
+	// }
+	// if optimisticGasLimit < hi {
+	// 	failed, _, _, err = executeRIP7560Execution(ctx, opts, tx, optimisticGasLimit)
+	// 	if err != nil {
+	// 		// This should not happen under normal conditions since if we make it this far the
+	// 		// transaction had run without error at least once before.
+	// 		log.Error("Execution error in estimate gas", "err", err)
+	// 		return 0, 0, nil, err
+	// 	}
+	// 	if failed {
+	// 		lo = optimisticGasLimit
+	// 	} else {
+	// 		hi = optimisticGasLimit
+	// 	}
+	// }
+
 	// Binary search for the smallest gas limit that allows the tx to execute successfully.
 	for lo+1 < hi {
 		if opts.ErrorRatio > 0 {
@@ -372,18 +376,20 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 			// range here is skewed to favor the low side.
 			mid = lo * 2
 		}
-		failed, _, _, err = executeRIP7560Execution(ctx, opts, tx, mid)
+		failed, _exer, _ppr, err := executeRIP7560Execution(ctx, opts, tx, mid)
 		if err != nil {
 			// This should not happen under normal conditions since if we make it this far the
 			// transaction had run without error at least once before.
 			log.Error("Execution error in estimate gas", "err", err)
-			return 0, nil, err
+			return 0, 0, 0, nil, err
 		}
 		if failed {
 			lo = mid
 		} else {
 			hi = mid
+			callGas = _exer.UsedGas
+			postOpGas = _ppr.UsedGas
 		}
 	}
-	return hi, nil, nil
+	return hi, callGas, postOpGas, nil, nil
 }
