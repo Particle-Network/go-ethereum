@@ -458,7 +458,7 @@ func ApplyRIP7560ExecutionPhase(
 
 	var paymasterPostOpResult *ExecutionResult
 	if len(vpr.PaymasterContext) != 0 {
-		paymasterPostOpResult, err = applyPaymasterPostOpFrame(vpr, executionResult, evm, gp)
+		paymasterPostOpResult, err = applyPaymasterPostOpFrame(vpr, evm, gp)
 		if err != nil {
 			log.Error("[RIP-7560] Post-OP-transaction Frame", "applyPaymasterPostOpFrame.err", err)
 			return executionResult, paymasterPostOpResult, 0, err
@@ -509,7 +509,6 @@ func ApplyRIP7560ExecutionPhase(
 
 func applyPaymasterPostOpFrame(
 	vpr *ValidationPhaseResult,
-	executionResult *ExecutionResult,
 	evm *vm.EVM,
 	gp *GasPool) (*ExecutionResult, error) {
 	var paymasterPostOpResult *ExecutionResult
