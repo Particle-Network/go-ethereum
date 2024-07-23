@@ -393,7 +393,6 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 		}
 
 		txsCommited = append(txsCommited, tx)
-		// env.state.SetTxContext(tx.Hash(), env.tcount)
 		_, receipt, _, err := core.ApplyRIP7560Transaction(
 			miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, tx, i)
 

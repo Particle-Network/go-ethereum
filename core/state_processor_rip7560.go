@@ -107,8 +107,8 @@ func ApplyRIP7560Transaction(
 	// However, in the unlikely event that something goes wrong,
 	// we will revert to the previous state and invalidate the transaction.
 	var (
-		// snapshot = statedb.Snapshot()
-		prevGas = gp.Gas()
+		snapshot = statedb.Snapshot()
+		prevGas  = gp.Gas()
 	)
 
 	statedb.SetTxContext(transaction.Hash(), txindex)
@@ -126,7 +126,7 @@ func ApplyRIP7560Transaction(
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to ApplyRIP7560ValidationPhases", "err", err)
 		// If an error occurs in the validation phase, invalidate the transaction
-		// statedb.RevertToSnapshot(snapshot)
+		statedb.RevertToSnapshot(snapshot)
 		gp.SetGas(prevGas)
 		return nil, nil, nil, err
 	}
