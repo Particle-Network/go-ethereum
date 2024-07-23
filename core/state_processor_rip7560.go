@@ -229,24 +229,26 @@ func ApplyRIP7560ValidationPhases(
 	evm := vm.NewEVM(blockContext, txContext, statedb, chainConfig, vmConfig)
 
 	/*** Deployer Frame ***/
-	deployerMsg := prepareDeployerMessage(tx)
 	var deploymentUsedGas uint64
-	if deployerMsg != nil {
-		result, err := ApplyMessage(evm, deployerMsg, gp)
-		if err != nil {
-			log.Error("[RIP-7560] Deployer Frame", "ApplyMessage.Err", err)
-			return nil, err
+	if size := statedb.GetCodeSize(*tx.Sender()); size == 0 {
+		deployerMsg := prepareDeployerMessage(tx)
+		if deployerMsg != nil {
+			result, err := ApplyMessage(evm, deployerMsg, gp)
+			if err != nil {
+				log.Error("[RIP-7560] Deployer Frame", "ApplyMessage.Err", err)
+				return nil, err
+			}
+			deployedAddr := common.BytesToAddress(result.ReturnData)
+			log.Info("[RIP-7560]", "deployedAddr", deployedAddr.Hex())
+			if result.Failed() || statedb.GetCode(deployedAddr) == nil {
+				return nil, errors.New("[RIP-7560] account deployment failed - invalid transaction")
+			} else if deployedAddr != *txData.Sender {
+				return nil, errors.New("[RIP-7560] deployed address mismatch - invalid transaction")
+			}
+			// TODO : would be handled inside IntrinsicGas
+			deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
+			log.Info("[RIP-7560] Execution gas info", "deployment.UsedGas", deploymentUsedGas)
 		}
-		deployedAddr := common.BytesToAddress(result.ReturnData)
-		log.Info("[RIP-7560]", "deployedAddr", deployedAddr.Hex())
-		if result.Failed() || statedb.GetCode(deployedAddr) == nil {
-			return nil, errors.New("[RIP-7560] account deployment failed - invalid transaction")
-		} else if deployedAddr != *txData.Sender {
-			return nil, errors.New("[RIP-7560] deployed address mismatch - invalid transaction")
-		}
-		// TODO : would be handled inside IntrinsicGas
-		deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
-		log.Info("[RIP-7560] Execution gas info", "deployment.UsedGas", deploymentUsedGas)
 	}
 
 	signer := types.NewRIP7560Signer(chainConfig.ChainID)
@@ -382,7 +384,7 @@ func applyPaymasterValidationFrame(
 	_ *params.ChainConfig,
 	evm *vm.EVM,
 	gp *GasPool,
-	statedb *state.StateDB,
+	_ *state.StateDB,
 	header *types.Header,
 	tx *types.Transaction,
 	signingHash common.Hash,
@@ -404,7 +406,7 @@ func applyPaymasterValidationFrame(
 			log.Error("[RIP-7560] Paymaster Validation Frame", "ApplyMessage.err", err)
 			return nil, 0, 0, 0, err
 		}
-		statedb.IntermediateRoot(true)
+		// statedb.IntermediateRoot(true)
 		if resultPm.Failed() {
 			return nil, 0, 0, 0, errors.New("paymaster validation failed - invalid transaction")
 		}
