@@ -150,6 +150,10 @@ func ApplyRIP7560Transaction(
 	// Set the receipt logs and create the bloom filter.
 	receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
 
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	if executionResult.Failed() || (paymasterPostOpResult != nil && paymasterPostOpResult.Failed()) {
 		receipt.Status = types.ReceiptStatusFailed
 	} else {
@@ -163,10 +167,6 @@ func ApplyRIP7560Transaction(
 	// receipt.BlockHash = header.Hash()
 	// receipt.BlockNumber = header.Number
 	// receipt.TransactionIndex = uint(statedb.TxIndex())
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
 
 	return transaction, receipt, receipt.Logs, nil
 }
@@ -242,6 +242,7 @@ func ApplyRIP7560ValidationPhases(
 			return nil, result.Err
 		}
 		nonceValidationUsedGas = result.UsedGas
+		log.Info("[RIP-7560] Execution gas info", "nonceValidation.UsedGas", result.UsedGas)
 	} else {
 		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
 		// Use legacy nonce validation
@@ -282,6 +283,7 @@ func ApplyRIP7560ValidationPhases(
 		}
 		// TODO : would be handled inside IntrinsicGas
 		deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
+		log.Info("[RIP-7560] Execution gas info", "deployment.UsedGas", deploymentUsedGas)
 	}
 
 	signer := types.NewRIP7560Signer(chainConfig.ChainID)
@@ -300,6 +302,7 @@ func ApplyRIP7560ValidationPhases(
 		log.Error("[RIP-7560] Account Validation Frame", "err", err)
 		return nil, err
 	}
+	log.Info("[RIP-7560] Execution gas info", "accountValidation.UsedGas", acValidationUsedGas)
 
 	/*** Paymaster Validation Frame ***/
 	paymasterContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, err := applyPaymasterValidationFrame(
@@ -308,6 +311,8 @@ func ApplyRIP7560ValidationPhases(
 		log.Error("[RIP-7560] Paymaster Validation Frame", "err", err)
 		return nil, err
 	}
+	log.Info("[RIP-7560] Execution gas info", "paymasterValidation.UsedGas", pmValidationUsedGas)
+
 	vpr := &ValidationPhaseResult{
 		Tx:                     tx,
 		TxHash:                 tx.Hash(),
@@ -455,7 +460,7 @@ func ApplyRIP7560ExecutionPhase(
 		paymasterPostOpResult, err = applyPaymasterPostOpFrame(vpr, executionResult, evm, gp)
 		if err != nil {
 			log.Error("[RIP-7560] Post-OP-transaction Frame", "applyPaymasterPostOpFrame.err", err)
-			return nil, nil, 0, err
+			return executionResult, paymasterPostOpResult, 0, err
 		}
 		// revert the execution phase changes
 		if paymasterPostOpResult.Failed() {
