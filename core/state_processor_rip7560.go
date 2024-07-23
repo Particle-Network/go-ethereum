@@ -227,47 +227,8 @@ func ApplyRIP7560ValidationPhases(
 	}
 	evm := vm.NewEVM(blockContext, txContext, statedb, chainConfig, vmConfig)
 
-	/*** Nonce Validation Frame ***/
-	// Nonce Validation Frame no state change, when failed and use legacy-nonce, nonce += 1.
-	nonceValidationMsg := prepareNonceValidationMessage(tx)
-	var nonceValidationUsedGas uint64
-	if nonceValidationMsg != nil {
-		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "2D-nonce")
-		result, err := ApplyMessage(evm, nonceValidationMsg, gp)
-		if err != nil {
-			log.Error("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
-			return nil, err
-		}
-		if result.Err != nil {
-			log.Error("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
-			return nil, result.Err
-		}
-		nonceValidationUsedGas = result.UsedGas
-		log.Info("[RIP-7560] Execution gas info", "nonceValidation.UsedGas", result.UsedGas)
-	} else {
-		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
-		// Use legacy nonce validation
-		senderNonce := statedb.GetNonce(*txData.Sender)
-		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
-		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
-			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
-			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
-		} else if senderNonce == 0 {
-			deployerData := txData.DeployerData
-			if len(deployerData) < 20 {
-				return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
-			}
-			if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
-				return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
-			}
-		} else {
-			// tx success or failed, whatever, nonce + 1
-			statedb.SetNonce(txContext.Origin, senderNonce+1)
-		}
-	}
-
 	/*** Deployer Frame ***/
-	deployerMsg := prepareDeployerMessage(tx, nonceValidationUsedGas)
+	deployerMsg := prepareDeployerMessage(tx)
 	var deploymentUsedGas uint64
 	if deployerMsg != nil {
 		result, err := ApplyMessage(evm, deployerMsg, gp)
@@ -297,13 +258,13 @@ func ApplyRIP7560ValidationPhases(
 	/*** Account Validation Frame ***/
 	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, signingHash, nonceValidationUsedGas, deploymentUsedGas, isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, signingHash, txData.ValidationGas-deploymentUsedGas, isEstimate)
 
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "err", err)
 		return nil, err
 	}
-	log.Info("[RIP-7560] Execution gas info", "accountValidation.UsedGas", acValidationUsedGas)
+	log.Info("[RIP-7560] Validation gas info", "accountValidation.UsedGas", acValidationUsedGas)
 
 	/*** Paymaster Validation Frame ***/
 	paymasterContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, err := applyPaymasterValidationFrame(
@@ -312,7 +273,46 @@ func ApplyRIP7560ValidationPhases(
 		log.Error("[RIP-7560] Paymaster Validation Frame", "err", err)
 		return nil, err
 	}
-	log.Info("[RIP-7560] Execution gas info", "paymasterValidation.UsedGas", pmValidationUsedGas)
+	log.Info("[RIP-7560] Validation gas info", "paymasterValidation.UsedGas", pmValidationUsedGas)
+
+	/*** Nonce Validation Frame ***/
+	// Nonce Validation Frame no state change, when failed and use legacy-nonce, nonce += 1.
+	nonceValidationMsg := prepareNonceValidationMessage(tx, txData.ValidationGas-deploymentUsedGas-acValidationUsedGas)
+	var nonceValidationUsedGas uint64
+	if nonceValidationMsg != nil {
+		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "2D-nonce")
+		result, err := ApplyMessage(evm, nonceValidationMsg, gp)
+		if err != nil {
+			log.Error("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
+			return nil, err
+		}
+		if result.Err != nil {
+			log.Error("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
+			return nil, result.Err
+		}
+		nonceValidationUsedGas = result.UsedGas
+		log.Info("[RIP-7560] Validation gas info", "nonceValidation.UsedGas", result.UsedGas)
+	} else {
+		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
+		// Use legacy nonce validation
+		senderNonce := statedb.GetNonce(*txData.Sender)
+		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
+		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
+			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
+			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
+		} else if senderNonce == 0 {
+			deployerData := txData.DeployerData
+			if len(deployerData) < 20 {
+				return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
+			}
+			if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
+				return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
+			}
+		} else {
+			// tx success or failed, whatever, nonce + 1
+			statedb.SetNonce(txContext.Origin, senderNonce+1)
+		}
+	}
 
 	vpr := &ValidationPhaseResult{
 		Tx:                     tx,
@@ -340,11 +340,10 @@ func applyAccountValidationFrame(
 	header *types.Header,
 	tx *types.Transaction,
 	signingHash common.Hash,
-	nonceValidationUsedGas uint64,
 	deploymentUsedGas uint64,
 	isEstimate bool) (uint64, uint64, uint64, error) {
 
-	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, nonceValidationUsedGas, deploymentUsedGas)
+	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, deploymentUsedGas)
 	if err != nil {
 		log.Error("[RIP-7560] prepareAccountValidation", "Err", err)
 		return 0, 0, 0, err
@@ -524,7 +523,7 @@ func applyPaymasterPostOpFrame(
 	return paymasterPostOpResult, nil
 }
 
-func prepareNonceValidationMessage(baseTx *types.Transaction) *Message {
+func prepareNonceValidationMessage(baseTx *types.Transaction, gasLimit uint64) *Message {
 	tx := baseTx.Rip7560TransactionData()
 
 	// TODO: add error when bigNonce value over 32 bytes
@@ -546,7 +545,7 @@ func prepareNonceValidationMessage(baseTx *types.Transaction) *Message {
 		From:              EntryPointAddress,
 		To:                &NonceManagerAddress,
 		Value:             big.NewInt(0),
-		GasLimit:          tx.ValidationGas,
+		GasLimit:          gasLimit,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,
@@ -557,7 +556,7 @@ func prepareNonceValidationMessage(baseTx *types.Transaction) *Message {
 	}
 }
 
-func prepareDeployerMessage(baseTx *types.Transaction, nonceValidationUsedGas uint64) *Message {
+func prepareDeployerMessage(baseTx *types.Transaction) *Message {
 	tx := baseTx.Rip7560TransactionData()
 	if len(tx.DeployerData) < 20 {
 		return nil
@@ -567,7 +566,7 @@ func prepareDeployerMessage(baseTx *types.Transaction, nonceValidationUsedGas ui
 		From:              DeployerCallerAddress,
 		To:                &deployerAddress,
 		Value:             big.NewInt(0),
-		GasLimit:          tx.ValidationGas - nonceValidationUsedGas,
+		GasLimit:          tx.ValidationGas,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,
@@ -581,8 +580,7 @@ func prepareDeployerMessage(baseTx *types.Transaction, nonceValidationUsedGas ui
 func prepareAccountValidationMessage(
 	baseTx *types.Transaction,
 	signingHash common.Hash,
-	nonceValidationUsedGas,
-	deploymentUsedGas uint64) (*Message, error) {
+	gasLimit uint64) (*Message, error) {
 	tx := baseTx.Rip7560TransactionData()
 	jsondata := `[
 	{"type":"function","name":"validateTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
@@ -603,7 +601,7 @@ func prepareAccountValidationMessage(
 		From:              EntryPointAddress,
 		To:                tx.Sender,
 		Value:             big.NewInt(0),
-		GasLimit:          tx.ValidationGas - nonceValidationUsedGas - deploymentUsedGas,
+		GasLimit:          gasLimit,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,
