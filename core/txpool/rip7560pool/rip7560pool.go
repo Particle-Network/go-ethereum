@@ -193,8 +193,7 @@ func (pool *RIP7560Pool) Pop7560(txs []*types.Transaction) []error {
 	var errs []error
 
 	log.Warn("RIP7560Pool Pop", "count", len(txs))
-	txsCopy := make([]*types.Transaction, 0, len(pool.pending))
-
+	var txsCopy []*types.Transaction
 	for _, tx := range txs {
 		delete(pool.pendingMap, tx.Hash())
 	}
@@ -206,7 +205,8 @@ func (pool *RIP7560Pool) Pop7560(txs []*types.Transaction) []error {
 		}
 	}
 
-	pool.pending = txsCopy
+	pool.pending = make([]*types.Transaction, 0)
+	pool.pending = append(pool.pending, txsCopy...)
 
 	return errs
 }
