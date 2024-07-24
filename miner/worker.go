@@ -392,7 +392,13 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 			continue
 		}
 
-		txsCommited = append(txsCommited, tx)
+		if receipts := miner.chain.GetReceiptsByHash(tx.Hash()); len(receipts) > 0 {
+			txsCommited = append(txsCommited, tx)
+			log.Warn("Transaction has on chain", "hash", tx.Hash)
+			continue
+		}
+
+		// txsCommited = append(txsCommited, tx)
 		_, receipt, _, err := core.ApplyRIP7560Transaction(
 			miner.chainConfig, miner.chain, vm.Config{}, env.gasPool, env.state, &env.coinbase, env.header, tx, i)
 

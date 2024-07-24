@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -359,11 +358,12 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 func (p *TxPool) Pop7560(txs []*types.Transaction) []error {
 	for _, pool := range p.subpools {
 		if pool.Type() == 3 {
-			callback := func() {
-				pool.Pop7560(txs)
-			}
-			// setTimeout
-			time.AfterFunc(1*time.Second, callback)
+			pool.Pop7560(txs)
+			// callback := func() {
+			// 	pool.Pop7560(txs)
+			// }
+			// // setTimeout
+			// time.AfterFunc(1*time.Second, callback)
 		}
 	}
 	var errs []error
