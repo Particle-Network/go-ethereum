@@ -355,6 +355,16 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 	return errs
 }
 
+func (p *TxPool) Pop7560(txs []*types.Transaction) []error {
+	for _, pool := range p.subpools {
+		if pool.Type() == 3 {
+			pool.Pop7560(txs)
+		}
+	}
+	errs := make([]error, 0)
+	return errs
+}
+
 // Pending retrieves all currently processable transactions, grouped by origin
 // account and sorted by nonce.
 //

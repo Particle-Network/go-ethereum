@@ -1230,6 +1230,11 @@ func (p *BlobPool) Add(txs []*types.Transaction, local bool, sync bool) []error 
 	return errs
 }
 
+func (pool *BlobPool) Pop7560(txs []*types.Transaction) []error {
+	var errs []error
+	return errs
+}
+
 // add inserts a new blob transaction into the pool if it passes validation (both
 // consensus validity and pool restrictions).
 func (p *BlobPool) add(tx *types.Transaction) (err error) {

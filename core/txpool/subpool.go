@@ -136,6 +136,8 @@ type SubPool interface {
 	// to a later point to batch multiple ones together.
 	Add(txs []*types.Transaction, local bool, sync bool) []error
 
+	Pop7560(txs []*types.Transaction) []error
+
 	// Pending retrieves all currently processable transactions, grouped by origin
 	// account and sorted by nonce.
 	//

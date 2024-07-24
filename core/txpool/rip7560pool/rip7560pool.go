@@ -167,38 +167,46 @@ func (pool *RIP7560Pool) Filter(tx *types.Transaction) bool {
 	return tx.Type() == types.RIP7560TxType
 }
 
-func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, isCommitedOrDroped bool) []error {
+func (pool *RIP7560Pool) Add(txs []*types.Transaction, _ bool, _ bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
 	var errs []error
 
-	if isCommitedOrDroped {
-		log.Warn("RIP7560Pool Delete", "count", len(txs))
-		txsCopy := make([]*types.Transaction, 0, len(pool.pending))
+	log.Warn("RIP7560Pool Add", "count", len(txs))
 
-		for _, tx := range txs {
-			delete(pool.pendingMap, tx.Hash())
-		}
-
-		for _, tx := range pool.pending {
-			// if in pendingMap, put in pending
-			if _, ok := pool.pendingMap[tx.Hash()]; ok {
-				txsCopy = append(txsCopy, tx)
-			}
-		}
-
-		pool.pending = txsCopy
-	} else {
-		log.Warn("RIP7560Pool Add", "count", len(txs))
-
-		for _, tx := range txs {
-			pool.pendingMap[tx.Hash()] = tx
-		}
-
-		pool.pending = append(pool.pending, txs...)
-
-		pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	for _, tx := range txs {
+		pool.pendingMap[tx.Hash()] = tx
 	}
+
+	pool.pending = append(pool.pending, txs...)
+
+	pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
+
+	return errs
+}
+
+func (pool *RIP7560Pool) Pop7560(txs []*types.Transaction) []error {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+
+	var errs []error
+
+	log.Warn("RIP7560Pool Pop", "count", len(txs))
+	txsCopy := make([]*types.Transaction, 0, len(pool.pending))
+
+	for _, tx := range txs {
+		delete(pool.pendingMap, tx.Hash())
+	}
+
+	for _, tx := range pool.pending {
+		// if in pendingMap, put in pending
+		if _, ok := pool.pendingMap[tx.Hash()]; ok {
+			txsCopy = append(txsCopy, tx)
+		}
+	}
+
+	pool.pending = txsCopy
+
 	return errs
 }

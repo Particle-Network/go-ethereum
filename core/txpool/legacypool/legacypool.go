@@ -1030,6 +1030,11 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	return errs
 }
 
+func (pool *LegacyPool) Pop7560(txs []*types.Transaction) []error {
+	var errs []error
+	return errs
+}
+
 // addTxsLocked attempts to queue a batch of transactions if they are valid.
 // The transaction pool lock must be held.
 func (pool *LegacyPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error, *accountSet) {
