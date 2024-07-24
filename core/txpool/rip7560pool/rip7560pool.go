@@ -104,7 +104,7 @@ func (pool *RIP7560Pool) Pending(filter txpool.PendingFilter) map[common.Address
 		})
 	}
 
-	result := make(map[common.Address][]*txpool.LazyTransaction, 1)
+	result := make(map[common.Address][]*txpool.LazyTransaction)
 	result[common.Address{}] = pending
 	// pool.pending = pool.pending[:0]
 	return result
@@ -205,7 +205,7 @@ func (pool *RIP7560Pool) Pop7560(txs []*types.Transaction) []error {
 		}
 	}
 
-	pool.pending = make([]*types.Transaction, 0)
+	pool.pending = pool.pending[:0]
 	pool.pending = append(pool.pending, txsCopy...)
 
 	return errs
