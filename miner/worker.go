@@ -404,7 +404,7 @@ func (miner *Miner) commitRIP7560Transactions(env *environment, txs []*types.Tra
 
 		if err != nil {
 			log.Error("Failed to handleRip7560Transactions", "err", err)
-			miner.txpool.Pop7560(txsCommited)
+			txsCommited = append(txsCommited, tx)
 			continue
 		}
 
