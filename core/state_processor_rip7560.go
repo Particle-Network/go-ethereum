@@ -406,7 +406,6 @@ func applyPaymasterValidationFrame(
 			log.Error("[RIP-7560] Paymaster Validation Frame", "ApplyMessage.err", err)
 			return nil, 0, 0, 0, err
 		}
-		// statedb.IntermediateRoot(true)
 		if resultPm.Failed() {
 			return nil, 0, 0, 0, errors.New("paymaster validation failed - invalid transaction")
 		}
@@ -598,7 +597,7 @@ func prepareAccountValidationMessage(
 	if err != nil {
 		return nil, err
 	}
-	log.Warn("[RIP-7560] prepareAccountValidationMessage", "signingHash", signingHash, "validateTransactionData", common.Bytes2Hex(validateTransactionData))
+	// log.Warn("[RIP-7560] prepareAccountValidationMessage", "signingHash", signingHash, "validateTransactionData", common.Bytes2Hex(validateTransactionData))
 
 	return &Message{
 		From:              EntryPointAddress,

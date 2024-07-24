@@ -1,9 +1,11 @@
 package types
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type rip7560Signer struct{ londonSigner }
@@ -26,22 +28,24 @@ func (s rip7560Signer) Hash(tx *Transaction) common.Hash {
 		return s.londonSigner.Hash(tx)
 	}
 	aatx := tx.Rip7560TransactionData()
-	return prefixedRlpHash(
-		tx.Type(),
-		[]interface{}{
-			s.chainId,
-			aatx.BigNonce,
-			aatx.Sender,
-			aatx.DeployerData,
-			aatx.PaymasterData,
-			tx.Data(),
-			aatx.BuilderFee,
-			tx.GasTipCap(),
-			tx.GasFeeCap(),
-			aatx.ValidationGas,
-			aatx.PaymasterGas,
-			aatx.PostOpGas,
-			tx.Gas(),
-			tx.AccessList(),
-		})
+	val := []interface{}{
+		s.chainId,
+		aatx.BigNonce,
+		aatx.Sender,
+		aatx.DeployerData,
+		aatx.PaymasterData,
+		tx.Data(),
+		aatx.BuilderFee,
+		tx.GasTipCap(),
+		tx.GasFeeCap(),
+		aatx.ValidationGas,
+		aatx.PaymasterGas,
+		aatx.PostOpGas,
+		tx.Gas(),
+		tx.AccessList(),
+	}
+
+	bt, _ := rlp.EncodeToBytes(val)
+	fmt.Println(common.Bytes2Hex(bt))
+	return prefixedRlpHash(tx.Type(), val)
 }
