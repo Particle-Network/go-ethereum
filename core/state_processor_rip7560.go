@@ -192,9 +192,10 @@ func PrepayGas(
 	balanceCheck := new(uint256.Int).Set(gasNeedValue)
 
 	chargeFrom := *txData.Sender
-	// txData.PaymasterData[:20] is PaymasterAddress
-	if len(txData.PaymasterData) >= 20 {
-		chargeFrom = [20]byte(txData.PaymasterData[:20])
+
+	zeroAddress := common.Address{}
+	if txData.Paymaster != nil && zeroAddress.Cmp(*tx.Paymaster()) != 0 {
+		chargeFrom = *txData.Paymaster
 	}
 
 	if have, want := state.GetBalance(chargeFrom), balanceCheck; have.Cmp(want) < 0 {
@@ -304,13 +305,17 @@ func ApplyRIP7560ValidationPhases(
 			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
 			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
 		} else if senderNonce == 0 {
-			deployerData := txData.DeployerData
-			if len(deployerData) < 20 {
+			zeroAddress := common.Address{}
+			if txData.Deployer == nil || zeroAddress.Cmp(*txData.Deployer) == 0 {
 				return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
 			}
-			if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
-				return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
-			}
+			// deployerData := txData.DeployerData
+			// if len(deployerData) < 20 {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
+			// }
+			// if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
+			// }
 		} else {
 			// tx success or failed, whatever, nonce + 1
 			statedb.SetNonce(txContext.Origin, senderNonce+1)
@@ -560,19 +565,21 @@ func prepareNonceValidationMessage(baseTx *types.Transaction, gasLimit uint64) *
 
 func prepareDeployerMessage(baseTx *types.Transaction) *Message {
 	tx := baseTx.Rip7560TransactionData()
-	if len(tx.DeployerData) < 20 {
+
+	zeroAddress := common.Address{}
+	if tx.Deployer == nil || zeroAddress.Cmp(*tx.Deployer) == 0 {
 		return nil
 	}
-	var deployerAddress common.Address = [20]byte(tx.DeployerData[0:20])
+	// var deployerAddress common.Address = [20]byte(tx.DeployerData[0:20])
 	return &Message{
 		From:              DeployerCallerAddress,
-		To:                &deployerAddress,
+		To:                tx.Deployer,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.ValidationGas,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,
-		Data:              tx.DeployerData[20:],
+		Data:              tx.DeployerData,
 		AccessList:        make(types.AccessList, 0),
 		SkipAccountChecks: true,
 		// IsRip7560Frame:    true,
@@ -616,10 +623,11 @@ func prepareAccountValidationMessage(
 
 func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash common.Hash) (*Message, error) {
 	tx := baseTx.Rip7560TransactionData()
-	if len(tx.PaymasterData) < 20 {
+	zeroAddress := common.Address{}
+	if tx.Paymaster == nil || zeroAddress.Cmp(*tx.Paymaster) == 0 {
 		return nil, nil
 	}
-	var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
+
 	jsondata := `[
 		{"type":"function","name":"validatePaymasterTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
 	]`
@@ -633,7 +641,7 @@ func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash co
 	}
 	return &Message{
 		From:              EntryPointAddress,
-		To:                &paymasterAddress,
+		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PaymasterGas,
 		GasPrice:          tx.GasFeeCap,
@@ -680,10 +688,10 @@ func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult) (*M
 	if err != nil {
 		return nil, err
 	}
-	var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
+	// var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
 	return &Message{
 		From:              EntryPointAddress,
-		To:                &paymasterAddress,
+		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PostOpGas,
 		GasPrice:          tx.GasFeeCap,

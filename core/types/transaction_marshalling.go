@@ -66,7 +66,9 @@ type txJSON struct {
 	SubType       *hexutil.Uint64 `json:"subType,omitempty"`
 	Sender        *common.Address `json:"sender,omitempty"`
 	Signature     *hexutil.Bytes  `json:"signature,omitempty"`
+	Paymaster     *common.Address `json:"paymaster,omitempty"`
 	PaymasterData *hexutil.Bytes  `json:"paymasterData,omitempty"`
+	Deployer      *common.Address `json:"deployer,omitempty"`
 	DeployerData  *hexutil.Bytes  `json:"deployerData,omitempty"`
 	BuilderFee    *hexutil.Big    `json:"builderFee,omitempty"`
 	ValidationGas *hexutil.Uint64 `json:"validationGas,omitempty"`
@@ -206,7 +208,9 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 		enc.AccessList = &itx.AccessList
 		enc.Sender = itx.Sender
 		enc.Signature = (*hexutil.Bytes)(&itx.Signature)
+		enc.Paymaster = itx.Paymaster
 		enc.PaymasterData = (*hexutil.Bytes)(&itx.PaymasterData)
+		enc.Deployer = itx.Deployer
 		enc.DeployerData = (*hexutil.Bytes)(&itx.DeployerData)
 		enc.BuilderFee = (*hexutil.Big)(itx.BuilderFee)
 		enc.ValidationGas = (*hexutil.Uint64)(&itx.ValidationGas)
@@ -216,12 +220,12 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 		enc.To = tx.To()
 		enc.Nonce = (*hexutil.Uint64)(&itx.Nonce)
 		enc.Value = (*hexutil.Big)(itx.Value)
-	case *Rip7560BundleHeaderTx:
-		log.Info("Marshal Rip7560BundleHaederType JSON")
-		enc.ChainID = (*hexutil.Big)(itx.ChainID)
-		enc.BlockNumber = (*hexutil.Big)(itx.BlockNumber)
-		enc.TransactionCount = (*hexutil.Uint64)(&itx.TransactionCount)
-		enc.TransactionIndex = (*hexutil.Uint64)(&itx.TransactionIndex)
+		// case *Rip7560BundleHeaderTx:
+		// 	log.Info("Marshal Rip7560BundleHaederType JSON")
+		// 	enc.ChainID = (*hexutil.Big)(itx.ChainID)
+		// 	enc.BlockNumber = (*hexutil.Big)(itx.BlockNumber)
+		// 	enc.TransactionCount = (*hexutil.Uint64)(&itx.TransactionCount)
+		// 	enc.TransactionIndex = (*hexutil.Uint64)(&itx.TransactionIndex)
 	}
 	return json.Marshal(&enc)
 }
@@ -565,6 +569,12 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'signature' in transaction")
 		}
 		itx.Signature = *dec.Signature
+		if dec.Paymaster != nil {
+			itx.Paymaster = dec.Paymaster
+		}
+		if dec.Deployer != nil {
+			itx.Deployer = dec.Deployer
+		}
 		if dec.PaymasterData != nil {
 			itx.PaymasterData = *dec.PaymasterData
 		}
@@ -599,26 +609,26 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'value' in transaction")
 		}
 		itx.Value = (*big.Int)(dec.Value)
-	case Rip7560BundleHeaderType:
-		var itx Rip7560BundleHeaderTx
-		inner = &itx
+	// case Rip7560BundleHeaderType:
+	// 	var itx Rip7560BundleHeaderTx
+	// 	inner = &itx
 
-		if dec.ChainID == nil {
-			return errors.New("missing required field 'chainId' in transaction")
-		}
-		itx.ChainID = (*big.Int)(dec.ChainID)
-		if dec.BlockNumber == nil {
-			return errors.New("missing required field 'blockNumber' in transaction")
-		}
-		itx.BlockNumber = (*big.Int)(dec.BlockNumber)
-		if dec.TransactionCount == nil {
-			return errors.New("missing required field 'transationCount' for txdata")
-		}
-		itx.TransactionCount = uint64(*dec.TransactionCount)
-		if dec.TransactionIndex == nil {
-			return errors.New("missing required field 'transactionIndex' for txdata")
-		}
-		itx.TransactionIndex = uint64(*dec.TransactionIndex)
+	// 	if dec.ChainID == nil {
+	// 		return errors.New("missing required field 'chainId' in transaction")
+	// 	}
+	// 	itx.ChainID = (*big.Int)(dec.ChainID)
+	// 	if dec.BlockNumber == nil {
+	// 		return errors.New("missing required field 'blockNumber' in transaction")
+	// 	}
+	// 	itx.BlockNumber = (*big.Int)(dec.BlockNumber)
+	// 	if dec.TransactionCount == nil {
+	// 		return errors.New("missing required field 'transationCount' for txdata")
+	// 	}
+	// 	itx.TransactionCount = uint64(*dec.TransactionCount)
+	// 	if dec.TransactionIndex == nil {
+	// 		return errors.New("missing required field 'transactionIndex' for txdata")
+	// 	}
+	// 	itx.TransactionIndex = uint64(*dec.TransactionIndex)
 
 	default:
 		return ErrTxTypeNotSupported

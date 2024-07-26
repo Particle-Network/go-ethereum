@@ -1,11 +1,9 @@
 package types
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type rip7560Signer struct{ londonSigner }
@@ -15,16 +13,13 @@ func NewRIP7560Signer(chainId *big.Int) Signer {
 }
 
 func (s rip7560Signer) Sender(tx *Transaction) (common.Address, error) {
-	if tx.Type() != RIP7560TxType && tx.Type() != Rip7560BundleHeaderType {
-		return s.londonSigner.Sender(tx)
-	}
 	return [20]byte{}, nil
 }
 
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s rip7560Signer) Hash(tx *Transaction) common.Hash {
-	if tx.Type() != RIP7560TxType && tx.Type() != Rip7560BundleHeaderType {
+	if tx.Type() != RIP7560TxType {
 		return s.londonSigner.Hash(tx)
 	}
 	aatx := tx.Rip7560TransactionData()
@@ -32,7 +27,9 @@ func (s rip7560Signer) Hash(tx *Transaction) common.Hash {
 		s.chainId,
 		aatx.BigNonce,
 		aatx.Sender,
+		aatx.Deployer,
 		aatx.DeployerData,
+		aatx.Paymaster,
 		aatx.PaymasterData,
 		tx.Data(),
 		aatx.BuilderFee,
@@ -45,7 +42,7 @@ func (s rip7560Signer) Hash(tx *Transaction) common.Hash {
 		tx.AccessList(),
 	}
 
-	bt, _ := rlp.EncodeToBytes(val)
-	fmt.Println(common.Bytes2Hex(bt))
-	return prefixedRlpHash(tx.Type(), val)
+	// bt, _ := rlp.EncodeToBytes(val)
+	// fmt.Println(common.Bytes2Hex(bt))
+	return prefixedRlpHash([]byte{4, 1}, val)
 }

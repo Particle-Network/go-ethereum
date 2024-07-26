@@ -239,7 +239,7 @@ func (s cancunSigner) Hash(tx *Transaction) common.Hash {
 		return s.londonSigner.Hash(tx)
 	}
 	return prefixedRlpHash(
-		tx.Type(),
+		[]byte{tx.Type()},
 		[]interface{}{
 			s.chainId,
 			tx.Nonce(),
@@ -307,7 +307,7 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 		return s.eip2930Signer.Hash(tx)
 	}
 	return prefixedRlpHash(
-		tx.Type(),
+		[]byte{tx.Type()},
 		[]interface{}{
 			s.chainId,
 			tx.Nonce(),
@@ -382,7 +382,7 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 		return s.EIP155Signer.Hash(tx)
 	case AccessListTxType:
 		return prefixedRlpHash(
-			tx.Type(),
+			[]byte{tx.Type()},
 			[]interface{}{
 				s.chainId,
 				tx.Nonce(),
