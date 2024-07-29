@@ -260,7 +260,8 @@ func ApplyRIP7560ValidationPhases(
 	// signingHash := common.Hash{}
 
 	/*** Account Validation Frame ***/
-	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
+	log.Warn("[RIP-7560] Account Validation Frame", "txhash", tx.Hash(), "signingHash", signingHash)
+	// log.Info("[RIP-7560] Validation gas info", "ValidationGas", txData.ValidationGas, "deploymentUsedGas", deploymentUsedGas)
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
 		chainConfig, evm, gp, statedb, header, tx, signingHash, txData.ValidationGas-deploymentUsedGas, isEstimate)
 
@@ -348,10 +349,10 @@ func applyAccountValidationFrame(
 	header *types.Header,
 	tx *types.Transaction,
 	signingHash common.Hash,
-	deploymentUsedGas uint64,
+	gasLimt uint64,
 	isEstimate bool) (uint64, uint64, uint64, error) {
 
-	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, deploymentUsedGas)
+	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, gasLimt)
 	if err != nil {
 		log.Error("[RIP-7560] prepareAccountValidation", "Err", err)
 		return 0, 0, 0, err
@@ -590,6 +591,7 @@ func prepareAccountValidationMessage(
 	baseTx *types.Transaction,
 	signingHash common.Hash,
 	gasLimit uint64) (*Message, error) {
+
 	tx := baseTx.Rip7560TransactionData()
 	jsondata := `[
 	{"type":"function","name":"validateTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
