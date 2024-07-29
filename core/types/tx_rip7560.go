@@ -41,7 +41,9 @@ type Rip7560AccountAbstractionTx struct {
 	Subtype       uint64
 	Sender        *common.Address
 	Signature     []byte
+	Paymaster     *common.Address
 	PaymasterData []byte
+	Deployer      *common.Address
 	DeployerData  []byte
 	BuilderFee    *big.Int
 	ValidationGas uint64
@@ -75,7 +77,9 @@ func (tx *Rip7560AccountAbstractionTx) copy() TxData {
 
 		Sender:        copyAddressPtr(tx.Sender),
 		Signature:     common.CopyBytes(tx.Signature),
+		Paymaster:     copyAddressPtr(tx.Paymaster),
 		PaymasterData: common.CopyBytes(tx.PaymasterData),
+		Deployer:      copyAddressPtr(tx.Deployer),
 		DeployerData:  common.CopyBytes(tx.DeployerData),
 		BuilderFee:    new(big.Int),
 		ValidationGas: tx.ValidationGas,
@@ -101,6 +105,13 @@ func (tx *Rip7560AccountAbstractionTx) copy() TxData {
 	}
 	if tx.BigNonce != nil {
 		cpy.BigNonce.Set(tx.BigNonce)
+	}
+	zeroAddress := common.Address{}
+	if tx.Paymaster != nil && zeroAddress.Cmp(*tx.Paymaster) == 0 {
+		tx.Paymaster = nil
+	}
+	if tx.Deployer != nil && zeroAddress.Cmp(*tx.Deployer) == 0 {
+		tx.Deployer = nil
 	}
 	return cpy
 }
@@ -162,7 +173,9 @@ type Rip7560Transaction struct {
 	MaxFeePerGas         *big.Int
 	MaxPriorityFeePerGas *big.Int
 	BuilderFee           *big.Int
+	Paymaster            common.Address
 	PaymasterData        []byte
+	Deployer             common.Address
 	DeployerData         []byte
 	CallData             []byte
 	Signature            []byte
@@ -179,7 +192,9 @@ func (tx *Rip7560AccountAbstractionTx) AbiEncode() ([]byte, error) {
 		{Name: "maxFeePerGas", Type: "uint256"},
 		{Name: "maxPriorityFeePerGas", Type: "uint256"},
 		{Name: "builderFee", Type: "uint256"},
+		{Name: "paymaster", Type: "address"},
 		{Name: "paymasterData", Type: "bytes"},
+		{Name: "deployer", Type: "address"},
 		{Name: "deployerData", Type: "bytes"},
 		{Name: "callData", Type: "bytes"},
 		{Name: "signature", Type: "bytes"},
@@ -198,7 +213,9 @@ func (tx *Rip7560AccountAbstractionTx) AbiEncode() ([]byte, error) {
 		MaxFeePerGas:         tx.GasFeeCap,
 		MaxPriorityFeePerGas: tx.GasTipCap,
 		BuilderFee:           tx.BuilderFee,
+		Paymaster:            *tx.Paymaster,
 		PaymasterData:        tx.PaymasterData,
+		Deployer:             *tx.Deployer,
 		DeployerData:         tx.DeployerData,
 		CallData:             tx.Data,
 		Signature:            tx.Signature,
@@ -209,23 +226,23 @@ func (tx *Rip7560AccountAbstractionTx) AbiEncode() ([]byte, error) {
 
 // ExternallyReceivedBundle represents a bundle of Type 4 transactions received from a trusted 3rd party.
 // The validator includes the bundle in the original order atomically or drops it completely.
-type ExternallyReceivedBundle struct {
-	BundlerId       string
-	BundleHash      common.Hash
-	ExpectedRevenue *big.Int
-	ValidForBlock   *big.Int
-	Transactions    []*Transaction
-}
+// type ExternallyReceivedBundle struct {
+// 	BundlerId       string
+// 	BundleHash      common.Hash
+// 	ExpectedRevenue *big.Int
+// 	ValidForBlock   *big.Int
+// 	Transactions    []*Transaction
+// }
 
 // BundleReceipt represents a receipt for an ExternallyReceivedBundle successfully included in a block.
-type BundleReceipt struct {
-	BundleHash          common.Hash
-	Count               uint64
-	Status              uint64 // 0=included / 1=pending / 2=invalid / 3=unknown
-	BlockNumber         uint64
-	BlockHash           common.Hash
-	TransactionReceipts []*Receipt
-	GasUsed             uint64
-	GasPaidPriority     *big.Int
-	BlockTimestamp      uint64
-}
+// type BundleReceipt struct {
+// 	BundleHash          common.Hash
+// 	Count               uint64
+// 	Status              uint64 // 0=included / 1=pending / 2=invalid / 3=unknown
+// 	BlockNumber         uint64
+// 	BlockHash           common.Hash
+// 	TransactionReceipts []*Receipt
+// 	GasUsed             uint64
+// 	GasPaidPriority     *big.Int
+// 	BlockTimestamp      uint64
+// }

@@ -20,8 +20,8 @@ import (
 )
 
 var RIP7560TxBaseGas uint64 = 15000
-var EntryPointAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
-var DeployerCallerAddress = common.HexToAddress("0x00000000000000000000000000000000ffff7560")
+var AA_EntryPointAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
+var AA_DeployerCallerAddress = common.HexToAddress("0x00000000000000000000000000000000ffff7560")
 var NonceManagerAddress = common.HexToAddress("0x0000000000000000000000000000000000007712") // some as 0x4200000000000000000000000000000000000024
 
 const MaxContextSize = 65536
@@ -192,9 +192,10 @@ func PrepayGas(
 	balanceCheck := new(uint256.Int).Set(gasNeedValue)
 
 	chargeFrom := *txData.Sender
-	// txData.PaymasterData[:20] is PaymasterAddress
-	if len(txData.PaymasterData) >= 20 {
-		chargeFrom = [20]byte(txData.PaymasterData[:20])
+
+	zeroAddress := common.Address{}
+	if txData.Paymaster != nil && zeroAddress.Cmp(*tx.Paymaster()) != 0 {
+		chargeFrom = *txData.Paymaster
 	}
 
 	if have, want := state.GetBalance(chargeFrom), balanceCheck; have.Cmp(want) < 0 {
@@ -259,7 +260,8 @@ func ApplyRIP7560ValidationPhases(
 	// signingHash := common.Hash{}
 
 	/*** Account Validation Frame ***/
-	// log.Warn("[RIP-7560] Account Validation Frame",  "txhash", tx.Hash())
+	log.Warn("[RIP-7560] Account Validation Frame", "txhash", tx.Hash(), "signingHash", signingHash)
+	// log.Info("[RIP-7560] Validation gas info", "ValidationGas", txData.ValidationGas, "deploymentUsedGas", deploymentUsedGas)
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
 		chainConfig, evm, gp, statedb, header, tx, signingHash, txData.ValidationGas-deploymentUsedGas, isEstimate)
 
@@ -304,13 +306,17 @@ func ApplyRIP7560ValidationPhases(
 			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
 			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
 		} else if senderNonce == 0 {
-			deployerData := txData.DeployerData
-			if len(deployerData) < 20 {
+			zeroAddress := common.Address{}
+			if txData.Deployer == nil || zeroAddress.Cmp(*txData.Deployer) == 0 {
 				return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
 			}
-			if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
-				return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
-			}
+			// deployerData := txData.DeployerData
+			// if len(deployerData) < 20 {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
+			// }
+			// if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
+			// }
 		} else {
 			// tx success or failed, whatever, nonce + 1
 			statedb.SetNonce(txContext.Origin, senderNonce+1)
@@ -343,10 +349,10 @@ func applyAccountValidationFrame(
 	header *types.Header,
 	tx *types.Transaction,
 	signingHash common.Hash,
-	deploymentUsedGas uint64,
+	gasLimt uint64,
 	isEstimate bool) (uint64, uint64, uint64, error) {
 
-	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, deploymentUsedGas)
+	accountValidationMsg, err := prepareAccountValidationMessage(tx, signingHash, gasLimt)
 	if err != nil {
 		log.Error("[RIP-7560] prepareAccountValidation", "Err", err)
 		return 0, 0, 0, err
@@ -544,7 +550,7 @@ func prepareNonceValidationMessage(baseTx *types.Transaction, gasLimit uint64) *
 	nonceValidationData = append(nonceValidationData[:], key...)
 
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                &NonceManagerAddress,
 		Value:             big.NewInt(0),
 		GasLimit:          gasLimit,
@@ -560,19 +566,21 @@ func prepareNonceValidationMessage(baseTx *types.Transaction, gasLimit uint64) *
 
 func prepareDeployerMessage(baseTx *types.Transaction) *Message {
 	tx := baseTx.Rip7560TransactionData()
-	if len(tx.DeployerData) < 20 {
+
+	zeroAddress := common.Address{}
+	if tx.Deployer == nil || zeroAddress.Cmp(*tx.Deployer) == 0 {
 		return nil
 	}
-	var deployerAddress common.Address = [20]byte(tx.DeployerData[0:20])
+	// var deployerAddress common.Address = [20]byte(tx.DeployerData[0:20])
 	return &Message{
-		From:              DeployerCallerAddress,
-		To:                &deployerAddress,
+		From:              AA_DeployerCallerAddress,
+		To:                tx.Deployer,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.ValidationGas,
 		GasPrice:          tx.GasFeeCap,
 		GasFeeCap:         tx.GasFeeCap,
 		GasTipCap:         tx.GasTipCap,
-		Data:              tx.DeployerData[20:],
+		Data:              tx.DeployerData,
 		AccessList:        make(types.AccessList, 0),
 		SkipAccountChecks: true,
 		// IsRip7560Frame:    true,
@@ -583,6 +591,7 @@ func prepareAccountValidationMessage(
 	baseTx *types.Transaction,
 	signingHash common.Hash,
 	gasLimit uint64) (*Message, error) {
+
 	tx := baseTx.Rip7560TransactionData()
 	jsondata := `[
 	{"type":"function","name":"validateTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
@@ -600,7 +609,7 @@ func prepareAccountValidationMessage(
 	// log.Warn("[RIP-7560] prepareAccountValidationMessage", "signingHash", signingHash, "validateTransactionData", common.Bytes2Hex(validateTransactionData))
 
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Sender,
 		Value:             big.NewInt(0),
 		GasLimit:          gasLimit,
@@ -616,10 +625,11 @@ func prepareAccountValidationMessage(
 
 func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash common.Hash) (*Message, error) {
 	tx := baseTx.Rip7560TransactionData()
-	if len(tx.PaymasterData) < 20 {
+	zeroAddress := common.Address{}
+	if tx.Paymaster == nil || zeroAddress.Cmp(*tx.Paymaster) == 0 {
 		return nil, nil
 	}
-	var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
+
 	jsondata := `[
 		{"type":"function","name":"validatePaymasterTransaction","inputs": [{"name": "version","type": "uint256"},{"name": "txHash","type": "bytes32"},{"name": "transaction","type": "bytes"}]}
 	]`
@@ -632,8 +642,8 @@ func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash co
 		return nil, err
 	}
 	return &Message{
-		From:              EntryPointAddress,
-		To:                &paymasterAddress,
+		From:              AA_EntryPointAddress,
+		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PaymasterGas,
 		GasPrice:          tx.GasFeeCap,
@@ -649,7 +659,7 @@ func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash co
 func prepareAccountExecutionMessage(_ *params.ChainConfig, baseTx *types.Transaction) *Message {
 	tx := baseTx.Rip7560TransactionData()
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Sender,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.Gas,
@@ -680,10 +690,10 @@ func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult) (*M
 	if err != nil {
 		return nil, err
 	}
-	var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
+	// var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
 	return &Message{
-		From:              EntryPointAddress,
-		To:                &paymasterAddress,
+		From:              AA_EntryPointAddress,
+		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PostOpGas,
 		GasPrice:          tx.GasFeeCap,

@@ -34,11 +34,12 @@ import (
 
 var RIP7560TxBaseGas uint64 = 15000
 
-func executeRIP7560Validation(
+func callRIP7560Validation(
 	ctx context.Context,
 	opts *Options,
 	tx *types.Transaction,
 	gasLimit uint64) (*core.ValidationPhaseResult, *state.StateDB, error) {
+
 	st := tx.Rip7560TransactionData()
 	// Configure the call for this specific execution (and revert the change after)
 	defer func(gas uint64) { st.ValidationGas = gas }(st.ValidationGas)
@@ -92,7 +93,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	// signingHash := signer.Hash(tx)
 	// Binary search the gas limit, as it may need to be higher than the amount used
 	st := tx.Rip7560TransactionData()
-	gasLimit := st.ValidationGas + st.PaymasterGas + RIP7560TxBaseGas
+	gasLimit := st.ValidationGas
 	var (
 		lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
@@ -103,40 +104,40 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 		hi = gasLimit
 	}
 	// Normalize the max fee per gas the call is willing to spend.
-	var feeCap *big.Int
-	if st.GasFeeCap != nil {
-		feeCap = st.GasFeeCap
-	} else {
-		feeCap = common.Big0
-	}
+	// var feeCap *big.Int
+	// if st.GasFeeCap != nil {
+	// 	feeCap = st.GasFeeCap
+	// } else {
+	// 	feeCap = common.Big0
+	// }
 	// Recap the highest gas limit with account's available balance.
-	if feeCap.BitLen() != 0 {
-		var payment common.Address
-		if len(st.PaymasterData) < 20 {
-			payment = *st.Sender
-		} else {
-			payment = common.BytesToAddress(st.PaymasterData[:20])
-		}
-		balance := opts.State.GetBalance(payment).ToBig()
+	// if feeCap.BitLen() != 0 {
+	// 	var payment common.Address
+	// 	if len(st.PaymasterData) < 20 {
+	// 		payment = *st.Sender
+	// 	} else {
+	// 		payment = common.BytesToAddress(st.PaymasterData[:20])
+	// 	}
+	// 	balance := opts.State.GetBalance(payment).ToBig()
 
-		allowance := new(big.Int).Div(balance, feeCap)
+	// 	allowance := new(big.Int).Div(balance, feeCap)
 
-		// If the allowance is larger than maximum uint64, skip checking
-		if allowance.IsUint64() && hi > allowance.Uint64() {
-			log.Debug("Gas estimation capped by limited funds", "original", hi, "balance", balance,
-				"maxFeePerGas", feeCap, "fundable", allowance)
-			hi = allowance.Uint64()
-		}
-	}
-	// Recap the highest gas allowance with specified gascap.
-	if gasCap != 0 && hi > gasCap {
-		log.Debug("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
-		hi = gasCap
-	}
+	// 	// If the allowance is larger than maximum uint64, skip checking
+	// 	if allowance.IsUint64() && hi > allowance.Uint64() {
+	// 		log.Debug("Gas estimation capped by limited funds", "original", hi, "balance", balance,
+	// 			"maxFeePerGas", feeCap, "fundable", allowance)
+	// 		hi = allowance.Uint64()
+	// 	}
+	// }
+	// // Recap the highest gas allowance with specified gascap.
+	// if gasCap != 0 && hi > gasCap {
+	// 	log.Debug("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
+	// 	hi = gasCap
+	// }
 
 	// We first execute the transaction at the highest allowable gas limit, since if this fails we
 	// can return error immediately.
-	vpr, statedb, err := executeRIP7560Validation(ctx, opts, tx, hi)
+	vpr, statedb, err := callRIP7560Validation(ctx, opts, tx, hi)
 	if err != nil {
 		return nil, err
 	} else if vpr == nil && err == nil {
@@ -186,7 +187,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 			// range here is skewed to favor the low side.
 			mid = lo * 2
 		}
-		vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, mid)
+		vpr, statedb, err = callRIP7560Validation(ctx, opts, tx, mid)
 		if err != nil {
 			// This should not happen under normal conditions since if we make it this far the
 			// transaction had run without error at least once before.
@@ -205,7 +206,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	return vpr, nil
 }
 
-func executeRIP7560Execution(
+func callRIP7560Execution(
 	ctx context.Context,
 	opts *Options,
 	tx *types.Transaction,
@@ -213,7 +214,7 @@ func executeRIP7560Execution(
 	st := tx.Rip7560TransactionData()
 	// Configure the call for this specific execution (and revert the change after)
 	defer func(gas uint64) { st.Gas = gas }(st.Gas)
-	st.Gas = gasLimit
+	st.CallGas = gasLimit
 
 	// Execute the call and separate execution faults caused by a lack of gas or
 	// other non-fixable conditions
@@ -262,7 +263,7 @@ func executeRIP7560Execution(
 func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *Options, gasCap uint64) (uint64, uint64, uint64, []byte, error) {
 	// Binary search the gas limit, as it may need to be higher than the amount used
 	st := tx.Rip7560TransactionData()
-	gasLimit := st.Gas + st.PostOpGas
+	gasLimit := st.CallGas
 	var (
 		lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
@@ -306,7 +307,7 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 
 	// We first execute the transaction at the highest allowable gas limit, since if this fails we
 	// can return error immediately.
-	failed, exr, ppr, err := executeRIP7560Execution(ctx, opts, tx, hi)
+	failed, exr, ppr, err := callRIP7560Execution(ctx, opts, tx, hi)
 	if err != nil {
 		return 0, 0, 0, nil, err
 	}
@@ -344,7 +345,7 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 	// 	optimisticGasLimit = (exr.UsedGas + exr.RefundedGas + ppr.UsedGas + ppr.RefundedGas + params.CallStipend) * 64 / 63
 	// }
 	// if optimisticGasLimit < hi {
-	// 	failed, _, _, err = executeRIP7560Execution(ctx, opts, tx, optimisticGasLimit)
+	// 	failed, _, _, err = callRIP7560Execution(ctx, opts, tx, optimisticGasLimit)
 	// 	if err != nil {
 	// 		// This should not happen under normal conditions since if we make it this far the
 	// 		// transaction had run without error at least once before.
@@ -376,7 +377,7 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 			// range here is skewed to favor the low side.
 			mid = lo * 2
 		}
-		failed, _exer, _ppr, err := executeRIP7560Execution(ctx, opts, tx, mid)
+		failed, _exer, _ppr, err := callRIP7560Execution(ctx, opts, tx, mid)
 		if err != nil {
 			// This should not happen under normal conditions since if we make it this far the
 			// transaction had run without error at least once before.
