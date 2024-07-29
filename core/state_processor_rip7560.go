@@ -288,11 +288,11 @@ func ApplyRIP7560ValidationPhases(
 		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "2D-nonce")
 		result, err := ApplyMessage(evm, nonceValidationMsg, gp)
 		if err != nil {
-			log.Error("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
+			log.Warn("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
 			return nil, err
 		}
 		if result.Err != nil {
-			log.Error("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
+			log.Warn("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
 			return nil, result.Err
 		}
 		nonceValidationUsedGas = result.UsedGas
