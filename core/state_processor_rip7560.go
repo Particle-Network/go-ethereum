@@ -20,8 +20,8 @@ import (
 )
 
 var RIP7560TxBaseGas uint64 = 15000
-var EntryPointAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
-var DeployerCallerAddress = common.HexToAddress("0x00000000000000000000000000000000ffff7560")
+var AA_EntryPointAddress = common.HexToAddress("0x0000000000000000000000000000000000007560")
+var AA_DeployerCallerAddress = common.HexToAddress("0x00000000000000000000000000000000ffff7560")
 var NonceManagerAddress = common.HexToAddress("0x0000000000000000000000000000000000007712") // some as 0x4200000000000000000000000000000000000024
 
 const MaxContextSize = 65536
@@ -549,7 +549,7 @@ func prepareNonceValidationMessage(baseTx *types.Transaction, gasLimit uint64) *
 	nonceValidationData = append(nonceValidationData[:], key...)
 
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                &NonceManagerAddress,
 		Value:             big.NewInt(0),
 		GasLimit:          gasLimit,
@@ -572,7 +572,7 @@ func prepareDeployerMessage(baseTx *types.Transaction) *Message {
 	}
 	// var deployerAddress common.Address = [20]byte(tx.DeployerData[0:20])
 	return &Message{
-		From:              DeployerCallerAddress,
+		From:              AA_DeployerCallerAddress,
 		To:                tx.Deployer,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.ValidationGas,
@@ -607,7 +607,7 @@ func prepareAccountValidationMessage(
 	// log.Warn("[RIP-7560] prepareAccountValidationMessage", "signingHash", signingHash, "validateTransactionData", common.Bytes2Hex(validateTransactionData))
 
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Sender,
 		Value:             big.NewInt(0),
 		GasLimit:          gasLimit,
@@ -640,7 +640,7 @@ func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash co
 		return nil, err
 	}
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PaymasterGas,
@@ -657,7 +657,7 @@ func preparePaymasterValidationMessage(baseTx *types.Transaction, signingHash co
 func prepareAccountExecutionMessage(_ *params.ChainConfig, baseTx *types.Transaction) *Message {
 	tx := baseTx.Rip7560TransactionData()
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Sender,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.Gas,
@@ -690,7 +690,7 @@ func preparePostOpMessage(_ *params.ChainConfig, vpr *ValidationPhaseResult) (*M
 	}
 	// var paymasterAddress common.Address = [20]byte(tx.PaymasterData[0:20])
 	return &Message{
-		From:              EntryPointAddress,
+		From:              AA_EntryPointAddress,
 		To:                tx.Paymaster,
 		Value:             big.NewInt(0),
 		GasLimit:          tx.PostOpGas,

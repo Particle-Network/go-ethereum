@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -302,8 +301,7 @@ func (st *StateTransition) preCheck() error {
 		}
 	}
 	// 0x0000000000000000000000000000000000007560 and 0x00000000000000000000000000000000ffff7560 skip check
-	isSysAddress := msg.From.String() == "0x0000000000000000000000000000000000007560" ||
-		strings.ToLower(msg.From.String()) == "0x00000000000000000000000000000000ffff7560"
+	isSysAddress := msg.From == AA_EntryPointAddress || msg.From == AA_DeployerCallerAddress
 	// if strings.HasSuffix(msg.From.String(), "7560") && strings.HasPrefix(msg.From.String(), "0x00000000000000000000000000000000") {
 	if isSysAddress {
 		st.gasRemaining += st.msg.GasLimit
@@ -450,8 +448,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if contractCreation {
 		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, value)
 	} else {
-		isSysAddress := msg.From.String() == "0x0000000000000000000000000000000000007560" ||
-			strings.ToLower(msg.From.String()) == "0x00000000000000000000000000000000ffff7560"
+		isSysAddress := msg.From == AA_EntryPointAddress || msg.From == AA_DeployerCallerAddress
 		// skip nonce increment when RIP-7560 frame
 		if !isSysAddress {
 			// Increment the nonce for the next transaction
