@@ -569,7 +569,7 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 			al = *args.AccessList
 		}
 		aatx := types.Rip7560AccountAbstractionTx{
-			Subtype:    uint64(*args.Subtype),
+			Subtype:    args.subtype(),
 			To:         &common.Address{},
 			ChainID:    (*big.Int)(args.ChainID),
 			Gas:        uint64(*args.Gas),
@@ -669,6 +669,13 @@ func (args *TransactionArgs) signature() []byte {
 		return *args.Signature
 	}
 	return nil
+}
+
+func (args *TransactionArgs) subtype() uint64 {
+	if args.Subtype != nil {
+		return uint64(*args.Subtype)
+	}
+	return 1
 }
 
 func (args *TransactionArgs) paymasterData() []byte {

@@ -95,7 +95,7 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	st := tx.Rip7560TransactionData()
 	gasLimit := st.ValidationGas
 	var (
-		lo uint64 // lowest-known gas limit where tx execution fails
+		// lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
 	)
 	// Determine the highest gas limit can be used during the estimation.
@@ -148,58 +148,40 @@ func EstimateRIP7560Validation(ctx context.Context, tx *types.Transaction, opts 
 	// is those that explicitly check gas remaining in order to execute within a
 	// given limit, but we probably don't want to return the lowest possible gas
 	// limit for these cases anyway.
-	vpUsedGas := vpr.NonceValidationUsedGas + vpr.ValidationUsedGas + vpr.DeploymentUsedGas + vpr.PmValidationUsedGas
-	lo = vpUsedGas - 1
+	// vpUsedGas := vpr.NonceValidationUsedGas + vpr.ValidationUsedGas + vpr.DeploymentUsedGas + vpr.PmValidationUsedGas
+	// lo = vpUsedGas - 1
 
-	// There's a fairly high chance for the transaction to execute successfully
-	// with gasLimit set to the first execution's usedGas + gasRefund. Explicitly
-	// check that gas amount and use as a limit for the binary search.
-	// optimisticGasLimit := (vpUsedGas + params.CallStipend) * 64 / 63
-	// if optimisticGasLimit < hi {
-	// 	vpr, statedb, err = executeRIP7560Validation(ctx, opts, tx, optimisticGasLimit, signingHash)
+	// Binary search for the smallest gas limit that allows the tx to execute successfully.
+	// for lo+1 < hi {
+	// 	if opts.ErrorRatio > 0 {
+	// 		// It is a bit pointless to return a perfect estimation, as changing
+	// 		// network conditions require the caller to bump it up anyway. Since
+	// 		// wallets tend to use 20-25% bump, allowing a small approximation
+	// 		// error is fine (as long as it's upwards).
+	// 		if float64(hi-lo)/float64(hi) < opts.ErrorRatio {
+	// 			break
+	// 		}
+	// 	}
+	// 	mid := (hi + lo) / 2
+	// 	if mid > lo*2 {
+	// 		// Most txs don't need much higher gas limit than their gas used, and most txs don't
+	// 		// require near the full block limit of gas, so the selection of where to bisect the
+	// 		// range here is skewed to favor the low side.
+	// 		mid = lo * 2
+	// 	}
+	// 	vpr, statedb, err = callRIP7560Validation(ctx, opts, tx, mid)
 	// 	if err != nil {
 	// 		// This should not happen under normal conditions since if we make it this far the
 	// 		// transaction had run without error at least once before.
 	// 		log.Error("Execution error in estimate gas", "err", err)
-	// 		return 0, err
+	// 		return nil, err
 	// 	}
 	// 	if vpr == nil {
-	// 		lo = optimisticGasLimit
+	// 		lo = mid
 	// 	} else {
-	// 		hi = optimisticGasLimit
+	// 		hi = mid
 	// 	}
 	// }
-	// Binary search for the smallest gas limit that allows the tx to execute successfully.
-	for lo+1 < hi {
-		if opts.ErrorRatio > 0 {
-			// It is a bit pointless to return a perfect estimation, as changing
-			// network conditions require the caller to bump it up anyway. Since
-			// wallets tend to use 20-25% bump, allowing a small approximation
-			// error is fine (as long as it's upwards).
-			if float64(hi-lo)/float64(hi) < opts.ErrorRatio {
-				break
-			}
-		}
-		mid := (hi + lo) / 2
-		if mid > lo*2 {
-			// Most txs don't need much higher gas limit than their gas used, and most txs don't
-			// require near the full block limit of gas, so the selection of where to bisect the
-			// range here is skewed to favor the low side.
-			mid = lo * 2
-		}
-		vpr, statedb, err = callRIP7560Validation(ctx, opts, tx, mid)
-		if err != nil {
-			// This should not happen under normal conditions since if we make it this far the
-			// transaction had run without error at least once before.
-			log.Error("Execution error in estimate gas", "err", err)
-			return nil, err
-		}
-		if vpr == nil {
-			lo = mid
-		} else {
-			hi = mid
-		}
-	}
 
 	opts.ValidationPhaseResult = vpr
 	opts.State = statedb
@@ -265,10 +247,10 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 	st := tx.Rip7560TransactionData()
 	gasLimit := st.CallGas
 	var (
-		lo uint64 // lowest-known gas limit where tx execution fails
+		// lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
 	)
-	// Determine the highest gas limit can be used during the estimation.
+	// // Determine the highest gas limit can be used during the estimation.
 	hi = opts.Header.GasLimit
 	if gasLimit >= params.TxGas {
 		hi = gasLimit
@@ -300,10 +282,10 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 		}
 	}
 	// Recap the highest gas allowance with specified gascap.
-	if gasCap != 0 && hi > gasCap {
-		log.Debug("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
-		hi = gasCap
-	}
+	// if gasCap != 0 && hi > gasCap {
+	// 	log.Debug("Caller gas above allowance, capping", "requested", hi, "cap", gasCap)
+	// 	hi = gasCap
+	// }
 
 	// We first execute the transaction at the highest allowable gas limit, since if this fails we
 	// can return error immediately.
@@ -329,9 +311,9 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 	callGas := exr.UsedGas
 	postOpGas := uint64(0)
 	if ppr == nil {
-		lo = exr.UsedGas - 1
+		// lo = exr.UsedGas - 1
 	} else {
-		lo = exr.UsedGas + ppr.UsedGas - 1
+		// lo = exr.UsedGas + ppr.UsedGas - 1
 		postOpGas = ppr.UsedGas
 	}
 
@@ -360,37 +342,39 @@ func EstimateRIP7560Execution(ctx context.Context, tx *types.Transaction, opts *
 	// }
 
 	// Binary search for the smallest gas limit that allows the tx to execute successfully.
-	for lo+1 < hi {
-		if opts.ErrorRatio > 0 {
-			// It is a bit pointless to return a perfect estimation, as changing
-			// network conditions require the caller to bump it up anyway. Since
-			// wallets tend to use 20-25% bump, allowing a small approximation
-			// error is fine (as long as it's upwards).
-			if float64(hi-lo)/float64(hi) < opts.ErrorRatio {
-				break
-			}
-		}
-		mid := (hi + lo) / 2
-		if mid > lo*2 {
-			// Most txs don't need much higher gas limit than their gas used, and most txs don't
-			// require near the full block limit of gas, so the selection of where to bisect the
-			// range here is skewed to favor the low side.
-			mid = lo * 2
-		}
-		failed, _exer, _ppr, err := callRIP7560Execution(ctx, opts, tx, mid)
-		if err != nil {
-			// This should not happen under normal conditions since if we make it this far the
-			// transaction had run without error at least once before.
-			log.Error("Execution error in estimate gas", "err", err)
-			return 0, 0, 0, nil, err
-		}
-		if failed {
-			lo = mid
-		} else {
-			hi = mid
-			callGas = _exer.UsedGas
-			postOpGas = _ppr.UsedGas
-		}
-	}
+	// for lo+1 < hi {
+	// 	if opts.ErrorRatio > 0 {
+	// 		// It is a bit pointless to return a perfect estimation, as changing
+	// 		// network conditions require the caller to bump it up anyway. Since
+	// 		// wallets tend to use 20-25% bump, allowing a small approximation
+	// 		// error is fine (as long as it's upwards).
+	// 		if float64(hi-lo)/float64(hi) < opts.ErrorRatio {
+	// 			break
+	// 		}
+	// 	}
+	// 	mid := (hi + lo) / 2
+	// 	if mid > lo*2 {
+	// 		// Most txs don't need much higher gas limit than their gas used, and most txs don't
+	// 		// require near the full block limit of gas, so the selection of where to bisect the
+	// 		// range here is skewed to favor the low side.
+	// 		mid = lo * 2
+	// 	}
+	// 	failed, _exer, _ppr, err := callRIP7560Execution(ctx, opts, tx, mid)
+	// 	if err != nil {
+	// 		// This should not happen under normal conditions since if we make it this far the
+	// 		// transaction had run without error at least once before.
+	// 		log.Error("Execution error in estimate gas", "err", err)
+	// 		return 0, 0, 0, nil, err
+	// 	}
+	// 	if failed {
+	// 		lo = mid
+	// 	} else {
+	// 		hi = mid
+	// 		callGas = _exer.UsedGas
+	// 		if _ppr != nil {
+	// 			postOpGas = _ppr.UsedGas
+	// 		}
+	// 	}
+	// }
 	return hi, callGas, postOpGas, nil, nil
 }

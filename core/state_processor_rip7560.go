@@ -137,16 +137,16 @@ func ApplyRIP7560Transaction(
 	vpr.Payment = payment
 	vpr.PrepaidGas = prepaidGas
 
-	// *** This is the line separating the Validation and Execution phases *** //
-	// It should be separated to implement the mempool-friendly AA RIP (number not assigned yet)
+	// *** Execution phases *** //
 
 	// TIP: this will miss all validation phase events - pass in 'vpr'
 	statedb.SetTxContext(vpr.Tx.Hash(), txindex+2000)
 	executionResult, paymasterPostOpResult, cumulativeGasUsed, err := ApplyRIP7560ExecutionPhase(
 		chainConfig, chain, vmConfig, gp, statedb, coinbase, header, vpr, vpr.Payment, vpr.PrepaidGas)
 
-	root := statedb.IntermediateRoot(true).Bytes()
-	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
+	// root := statedb.IntermediateRoot(true).Bytes()
+	// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
+	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: cumulativeGasUsed}
 
 	// Set the receipt logs and create the bloom filter.
 	receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
