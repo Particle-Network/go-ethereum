@@ -129,6 +129,18 @@ func ApplyRIP7560Transaction(
 		// If an error occurs in the validation phase, invalidate the transaction
 		statedb.RevertToSnapshot(snapshot)
 		gp.SetGas(prevGas)
+		// cumulativeGasUsed := vpr.NonceValidationUsedGas +
+		// 	vpr.ValidationUsedGas +
+		// 	vpr.DeploymentUsedGas +
+		// 	vpr.PmValidationUsedGas
+
+		// refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
+		// statedb.AddBalance(*payment, refundGas, 0x01)
+		// gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
+		// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: vpr.Tx.Gas()}
+		// receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
+		// receipt.Status = types.ReceiptStatusFailed
+		// return transaction, receipt, receipt.Logs, nil
 		return nil, nil, nil, err
 	}
 
@@ -147,18 +159,17 @@ func ApplyRIP7560Transaction(
 	// root := statedb.IntermediateRoot(true).Bytes()
 	// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
 	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: cumulativeGasUsed}
-
-	// Set the receipt logs and create the bloom filter.
 	receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
 
 	if executionResult.Failed() || (paymasterPostOpResult != nil && paymasterPostOpResult.Failed()) {
 		receipt.Status = types.ReceiptStatusFailed
 	} else {
 		receipt.Status = types.ReceiptStatusSuccessful
+	}
+
+	if err != nil {
+		receipt.Status = types.ReceiptStatusFailed
+		// return nil, nil, nil, err
 	}
 
 	// receipt.TxHash = vpr.Tx.Hash()
@@ -502,9 +513,9 @@ func ApplyRIP7560ExecutionPhase(
 	// gasPenalty := (prepaidGas.Uint64() - cumulativeGasUsed) * UNUSED_GAS_PENALTY_PERCENT / 100
 	var gasPenalty uint64 = 0
 	cumulativeGasUsed += gasPenalty
-	refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
-	statedb.AddBalance(*payment, refundGas, 0x01)
-	gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
+	// refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
+	// statedb.AddBalance(*payment, refundGas, 0x01)
+	// gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
 
 	if paymasterPostOpResult != nil {
 		log.Info("[RIP-7560] Execution gas info", "paymasterPostOpResult.UsedGas", paymasterPostOpResult.UsedGas)
