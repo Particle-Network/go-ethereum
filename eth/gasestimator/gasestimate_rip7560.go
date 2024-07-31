@@ -67,7 +67,7 @@ func callRIP7560Validation(
 	}()
 
 	// Gas Pool is set to half of the maximum possible gas to prevent overflow
-	vpr, err := core.ApplyRIP7560ValidationPhases(
+	vpr, _, err := core.ApplyRIP7560ValidationPhases(
 		opts.Config,
 		opts.Chain,
 		evm.Config,

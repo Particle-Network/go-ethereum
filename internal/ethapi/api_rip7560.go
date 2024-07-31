@@ -48,7 +48,7 @@ func DoEstimateRIP7560TransactionGas(
 	tx := args.ToTransaction()
 
 	gp := new(core.GasPool).AddGas(math.MaxUint64)
-	payment, prepaidGas, err := core.PrepayGas(chainConfig, gp, header, tx, state)
+	payment, prepaidGas, _, err := core.PrepayGas(chainConfig, gp, header, tx, state)
 	if err != nil {
 		return nil, err
 	}

@@ -110,55 +110,58 @@ func ApplyRIP7560Transaction(
 		snapshot = statedb.Snapshot()
 		prevGas  = gp.Gas()
 	)
-	log.Info("[RIP-7560] ApplyRIP7560Transaction", "snapshot", snapshot)
-
+	// log.Info("[RIP-7560] ApplyRIP7560Transaction", "snapshot", snapshot)
 	statedb.SetTxContext(transaction.Hash(), txindex)
-	log.Info("[RIP-7560] Validation Phase - BuyGas")
-	payment, prepaidGas, err := PrepayGas(chainConfig, gp, header, transaction, statedb)
+	payment, prepaidGas, effectiveGasPrice, err := PrepayGas(chainConfig, gp, header, transaction, statedb)
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to prepayGas", "err", err)
+		statedb.RevertToSnapshot(snapshot)
+		gp.SetGas(prevGas)
 		return nil, nil, nil, err
 	}
 
+	// ****************** Validation phases ****************** //
 	var vpr *ValidationPhaseResult
-	log.Info("[RIP-7560] Validation Phase - Validation")
 
-	vpr, err = ApplyRIP7560ValidationPhases(chainConfig, chain, vmConfig, gp, statedb, coinbase, header, transaction, false)
+	var gasUsed uint64
+	vpr, gasUsed, err = ApplyRIP7560ValidationPhases(chainConfig, chain, vmConfig, gp, statedb, coinbase, header, transaction, false)
 	if err != nil {
 		log.Warn("[RIP-7560] Failed to ApplyRIP7560ValidationPhases", "err", err)
 		// If an error occurs in the validation phase, invalidate the transaction
-		statedb.RevertToSnapshot(snapshot)
-		gp.SetGas(prevGas)
-		// cumulativeGasUsed := vpr.NonceValidationUsedGas +
-		// 	vpr.ValidationUsedGas +
-		// 	vpr.DeploymentUsedGas +
-		// 	vpr.PmValidationUsedGas
 
-		// refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
-		// statedb.AddBalance(*payment, refundGas, 0x01)
-		// gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
-		// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: vpr.Tx.Gas()}
-		// receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
-		// receipt.Status = types.ReceiptStatusFailed
-		// return transaction, receipt, receipt.Logs, nil
-		return nil, nil, nil, err
+		if gasUsed == 0 {
+			statedb.RevertToSnapshot(snapshot)
+			gp.SetGas(prevGas)
+			return nil, nil, nil, err
+		}
+
+		refundGas := uint256.NewInt((prepaidGas.Uint64() - gasUsed))
+		refundGasBalance := new(uint256.Int).Mul(refundGas, new(uint256.Int).SetUint64(effectiveGasPrice.Uint64()))
+		statedb.AddBalance(*payment, refundGasBalance, 0x01)
+		gp.AddGas(refundGas.Uint64())
+		log.Info("[RIP-7560] Validation Phase - refundGas", "v", refundGas)
+		receipt := &types.Receipt{Type: transaction.Type(), PostState: nil, CumulativeGasUsed: gasUsed}
+
+		receipt.Logs = statedb.GetLogs(transaction.Hash(), header.Number.Uint64(), header.Hash())
+		receipt.Status = types.ReceiptStatusFailed
+
+		return transaction, receipt, receipt.Logs, nil
+		// return nil, nil, nil, err
 	}
-
-	statedb.IntermediateRoot(true)
 
 	vpr.Payment = payment
 	vpr.PrepaidGas = prepaidGas
 
-	// *** Execution phases *** //
-
+	// ****************** Execution phases ****************** //
 	// TIP: this will miss all validation phase events - pass in 'vpr'
-	statedb.SetTxContext(vpr.Tx.Hash(), txindex+2000)
+	// statedb.IntermediateRoot(true)
+	// statedb.SetTxContext(vpr.Tx.Hash(), txindex+2000)
 	executionResult, paymasterPostOpResult, cumulativeGasUsed, err := ApplyRIP7560ExecutionPhase(
 		chainConfig, chain, vmConfig, gp, statedb, coinbase, header, vpr, vpr.Payment, vpr.PrepaidGas)
 
-	// root := statedb.IntermediateRoot(true).Bytes()
-	// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
-	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: cumulativeGasUsed}
+	root := statedb.IntermediateRoot(true).Bytes()
+	receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: root, CumulativeGasUsed: cumulativeGasUsed}
+	// receipt := &types.Receipt{Type: vpr.Tx.Type(), PostState: nil, CumulativeGasUsed: cumulativeGasUsed}
 	receipt.Logs = statedb.GetLogs(vpr.Tx.Hash(), header.Number.Uint64(), header.Hash())
 
 	if executionResult.Failed() || (paymasterPostOpResult != nil && paymasterPostOpResult.Failed()) {
@@ -189,7 +192,7 @@ func PrepayGas(
 	gp *GasPool,
 	header *types.Header,
 	tx *types.Transaction,
-	state vm.StateDB) (*common.Address, *uint256.Int, error) {
+	state vm.StateDB) (*common.Address, *uint256.Int, *big.Int, error) {
 
 	txData := tx.Rip7560TransactionData()
 	gasLimit := txData.Gas
@@ -210,15 +213,15 @@ func PrepayGas(
 	}
 
 	if have, want := state.GetBalance(chargeFrom), balanceCheck; have.Cmp(want) < 0 {
-		return &common.Address{}, new(uint256.Int), fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, chargeFrom.Hex(), have, want)
+		return &common.Address{}, new(uint256.Int), effectiveGasPrice, fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, chargeFrom.Hex(), have, want)
 	}
 
 	state.SubBalance(chargeFrom, gasNeedValue, 0x01) // tracing.BalanceChangeReason TODO: replace 0x01 to real reason
 	err := gp.SubGas(gasNeed.Uint64())
 	if err != nil {
-		return &common.Address{}, new(uint256.Int), err
+		return &common.Address{}, new(uint256.Int), effectiveGasPrice, err
 	}
-	return &chargeFrom, gasNeed, nil
+	return &chargeFrom, gasNeed, effectiveGasPrice, nil
 }
 
 func ApplyRIP7560ValidationPhases(
@@ -230,7 +233,7 @@ func ApplyRIP7560ValidationPhases(
 	coinbase *common.Address,
 	header *types.Header,
 	tx *types.Transaction,
-	isEstimate bool) (*ValidationPhaseResult, error) {
+	isEstimate bool) (*ValidationPhaseResult, uint64, error) {
 	blockContext := NewEVMBlockContext(header, chainCtx, coinbase)
 
 	txData := tx.Rip7560TransactionData()
@@ -240,6 +243,56 @@ func ApplyRIP7560ValidationPhases(
 	}
 	evm := vm.NewEVM(blockContext, txContext, statedb, chainConfig, vmConfig)
 
+	var gasUsed uint64
+
+	/*** Nonce Validation Frame ***/
+	// Nonce Validation Frame no state change, when failed and use legacy-nonce, nonce += 1.
+	nonceValidationMsg := prepareNonceValidationMessage(tx, txData.ValidationGas)
+	var nonceValidationUsedGas uint64
+	if nonceValidationMsg != nil {
+		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "2D-nonce")
+		result, err := ApplyMessage(evm, nonceValidationMsg, gp)
+		if err != nil {
+			log.Error("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
+			return nil, gasUsed, err
+		}
+
+		if result.Err != nil {
+			log.Error("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
+			return nil, gasUsed, result.Err
+		}
+		nonceValidationUsedGas = result.UsedGas
+		log.Info("[RIP-7560] Validation gas info", "nonceValidation.UsedGas", result.UsedGas)
+	} else {
+		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
+		// Use legacy nonce validation
+		senderNonce := statedb.GetNonce(*txData.Sender)
+		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
+		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
+			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
+			return nil, gasUsed, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
+		} else if senderNonce == 0 {
+			zeroAddress := common.Address{}
+			if txData.Deployer == nil || zeroAddress.Cmp(*txData.Deployer) == 0 {
+				return nil, gasUsed,
+					errors.New("[RIP-7560] nonce validation failed 02- invalid deployer")
+			}
+			// deployerData := txData.DeployerData
+			// if len(deployerData) < 20 {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
+			// }
+			// if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
+			// 	return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
+			// }
+		} else {
+			// tx success or failed, whatever, nonce + 1
+			statedb.SetNonce(txContext.Origin, senderNonce+1)
+		}
+	}
+
+	gasUsed = RIP7560TxBaseGas
+	gasUsed += nonceValidationUsedGas
+
 	/*** Deployer Frame ***/
 	var deploymentUsedGas uint64
 	if size := statedb.GetCodeSize(*tx.Sender()); size == 0 {
@@ -248,17 +301,19 @@ func ApplyRIP7560ValidationPhases(
 			result, err := ApplyMessage(evm, deployerMsg, gp)
 			if err != nil {
 				log.Error("[RIP-7560] Deployer Frame", "ApplyMessage.Err", err)
-				return nil, err
+				return nil, gasUsed, err
 			}
+			gasUsed += result.UsedGas
 			deployedAddr := common.BytesToAddress(result.ReturnData)
 			log.Info("[RIP-7560]", "deployedAddr", deployedAddr.Hex())
 			if result.Failed() || statedb.GetCode(deployedAddr) == nil {
-				return nil, errors.New("[RIP-7560] account deployment failed - invalid transaction")
+				return nil, gasUsed, errors.New("[RIP-7560] account deployment failed - invalid transaction")
 			} else if deployedAddr != *txData.Sender {
-				return nil, errors.New("[RIP-7560] deployed address mismatch - invalid transaction")
+				return nil, gasUsed, errors.New("[RIP-7560] deployed address mismatch - invalid transaction")
 			}
 			// TODO : would be handled inside IntrinsicGas
 			deploymentUsedGas = result.UsedGas + params.TxGasContractCreation
+			gasUsed += params.TxGasContractCreation
 			log.Info("[RIP-7560] Execution gas info", "deployment.UsedGas", deploymentUsedGas)
 		}
 	}
@@ -274,65 +329,24 @@ func ApplyRIP7560ValidationPhases(
 	log.Warn("[RIP-7560] Account Validation Frame", "txhash", tx.Hash(), "signingHash", signingHash)
 	// log.Info("[RIP-7560] Validation gas info", "ValidationGas", txData.ValidationGas, "deploymentUsedGas", deploymentUsedGas)
 	acValidationUsedGas, acValidAfter, acValidUntil, err := applyAccountValidationFrame(
-		chainConfig, evm, gp, statedb, header, tx, signingHash, txData.ValidationGas-deploymentUsedGas, isEstimate)
+		chainConfig, evm, gp, statedb, header, tx, signingHash, txData.ValidationGas-deploymentUsedGas-nonceValidationUsedGas, isEstimate)
 
+	gasUsed += acValidationUsedGas
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "err", err)
-		return nil, err
+		return nil, gasUsed, err
 	}
 	log.Info("[RIP-7560] Validation gas info", "accountValidation.UsedGas", acValidationUsedGas)
 
 	/*** Paymaster Validation Frame ***/
 	paymasterContext, pmValidationUsedGas, pmValidAfter, pmValidUntil, err := applyPaymasterValidationFrame(
 		chainConfig, evm, gp, statedb, header, tx, signingHash, isEstimate)
+	gasUsed += pmValidationUsedGas
 	if err != nil {
 		log.Error("[RIP-7560] Paymaster Validation Frame", "err", err)
-		return nil, err
+		return nil, gasUsed, err
 	}
 	log.Info("[RIP-7560] Validation gas info", "paymasterValidation.UsedGas", pmValidationUsedGas)
-
-	/*** Nonce Validation Frame ***/
-	// Nonce Validation Frame no state change, when failed and use legacy-nonce, nonce += 1.
-	nonceValidationMsg := prepareNonceValidationMessage(tx, txData.ValidationGas-deploymentUsedGas-acValidationUsedGas)
-	var nonceValidationUsedGas uint64
-	if nonceValidationMsg != nil {
-		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "2D-nonce")
-		result, err := ApplyMessage(evm, nonceValidationMsg, gp)
-		if err != nil {
-			log.Warn("[RIP-7560] Nonce Validation Frame", "ApplyMessage.Err", err)
-			return nil, err
-		}
-		if result.Err != nil {
-			log.Warn("[RIP-7560] Nonce Validation Frame", "result.Err", result.Err)
-			return nil, result.Err
-		}
-		nonceValidationUsedGas = result.UsedGas
-		log.Info("[RIP-7560] Validation gas info", "nonceValidation.UsedGas", result.UsedGas)
-	} else {
-		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
-		// Use legacy nonce validation
-		senderNonce := statedb.GetNonce(*txData.Sender)
-		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
-		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
-			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
-			return nil, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
-		} else if senderNonce == 0 {
-			zeroAddress := common.Address{}
-			if txData.Deployer == nil || zeroAddress.Cmp(*txData.Deployer) == 0 {
-				return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
-			}
-			// deployerData := txData.DeployerData
-			// if len(deployerData) < 20 {
-			// 	return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
-			// }
-			// if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
-			// 	return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
-			// }
-		} else {
-			// tx success or failed, whatever, nonce + 1
-			statedb.SetNonce(txContext.Origin, senderNonce+1)
-		}
-	}
 
 	vpr := &ValidationPhaseResult{
 		Tx:                     tx,
@@ -349,7 +363,7 @@ func ApplyRIP7560ValidationPhases(
 	}
 	log.Info("[RIP-7560] ValidationPhaseResult", "vpr", vpr)
 
-	return vpr, nil
+	return vpr, gasUsed, nil
 }
 
 func applyAccountValidationFrame(
@@ -377,21 +391,21 @@ func applyAccountValidationFrame(
 	if result.Err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "result.Err", result.Err)
 		if !isEstimate {
-			return 0, 0, 0, result.Err
+			return result.UsedGas, 0, 0, result.Err
 		}
 	}
 	validAfter, validUntil, err := validateAccountReturnData(result.ReturnData)
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "validateAccountReturnData.Err", err)
 		if !isEstimate {
-			return 0, 0, 0, err
+			return result.UsedGas, 0, 0, err
 		}
 	}
 	err = validateValidityTimeRange(header.Time, validAfter, validUntil)
 	if err != nil {
 		log.Error("[RIP-7560] Account Validation Frame", "validateValidityTimeRange.Err", err)
 		if !isEstimate {
-			return 0, 0, 0, err
+			return result.UsedGas, 0, 0, err
 		}
 	}
 	return result.UsedGas, validAfter, validUntil, nil
@@ -418,28 +432,28 @@ func applyPaymasterValidationFrame(
 
 	}
 	if paymasterMsg != nil {
-		resultPm, err := ApplyMessage(evm, paymasterMsg, gp)
+		result, err := ApplyMessage(evm, paymasterMsg, gp)
 		if err != nil {
 			log.Error("[RIP-7560] Paymaster Validation Frame", "ApplyMessage.err", err)
 			return nil, 0, 0, 0, err
 		}
-		if resultPm.Failed() {
-			return nil, 0, 0, 0, errors.New("paymaster validation failed - invalid transaction")
+		if result.Failed() {
+			return nil, result.UsedGas, 0, 0, errors.New("paymaster validation failed - invalid transaction")
 		}
-		pmValidationUsedGas = resultPm.UsedGas
-		pmContext, pmValidAfter, pmValidUntil, err = validatePaymasterReturnData(resultPm.ReturnData)
+		pmValidationUsedGas = result.UsedGas
+		pmContext, pmValidAfter, pmValidUntil, err = validatePaymasterReturnData(result.ReturnData)
 		if err != nil {
 			log.Error("[RIP-7560] Paymaster Validation Frame", "validatePaymasterReturnData.err", err)
 			// return nil, 0, 0, 0, err
 			if !isEstimate {
-				return nil, 0, 0, 0, err
+				return nil, result.UsedGas, 0, 0, err
 			}
 		}
 		err = validateValidityTimeRange(header.Time, pmValidAfter, pmValidUntil)
 		if err != nil {
 			log.Error("[RIP-7560] Paymaster Validation Frame", "validateValidityTimeRange.err", err)
 			if !isEstimate {
-				return nil, 0, 0, 0, err
+				return nil, result.UsedGas, 0, 0, err
 			}
 		}
 	}
@@ -513,9 +527,9 @@ func ApplyRIP7560ExecutionPhase(
 	// gasPenalty := (prepaidGas.Uint64() - cumulativeGasUsed) * UNUSED_GAS_PENALTY_PERCENT / 100
 	var gasPenalty uint64 = 0
 	cumulativeGasUsed += gasPenalty
-	// refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
-	// statedb.AddBalance(*payment, refundGas, 0x01)
-	// gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
+	refundGas := uint256.NewInt((prepaidGas.Uint64() - cumulativeGasUsed) * evm.Context.BaseFee.Uint64())
+	statedb.AddBalance(*payment, refundGas, 0x01)
+	gp.AddGas(prepaidGas.Uint64() - cumulativeGasUsed)
 
 	if paymasterPostOpResult != nil {
 		log.Info("[RIP-7560] Execution gas info", "paymasterPostOpResult.UsedGas", paymasterPostOpResult.UsedGas)
