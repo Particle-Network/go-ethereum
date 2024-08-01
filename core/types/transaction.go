@@ -396,7 +396,7 @@ func (tx *Transaction) Paymaster() *common.Address {
 	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
 		return dep.Paymaster
 	}
-	return nil
+	return &common.Address{}
 }
 
 func (tx *Transaction) PaymasterData() []byte {
@@ -410,7 +410,7 @@ func (tx *Transaction) Deployer() *common.Address {
 	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
 		return dep.Deployer
 	}
-	return nil
+	return &common.Address{}
 }
 
 func (tx *Transaction) DeployerData() []byte {
