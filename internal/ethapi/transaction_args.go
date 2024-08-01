@@ -581,8 +581,8 @@ func (args *TransactionArgs) ToTransaction() *types.Transaction {
 			// RIP-7560 parameters
 			Sender:        args.Sender,
 			Signature:     args.signature(),
-			Paymaster:     args.Paymaster,
-			Deployer:      args.Deployer,
+			Paymaster:     args.paymaster(),
+			Deployer:      args.deployer(),
 			PaymasterData: args.paymasterData(),
 			DeployerData:  args.deployerData(),
 			BuilderFee:    (*big.Int)(args.BuilderFee),
@@ -678,6 +678,13 @@ func (args *TransactionArgs) subtype() uint64 {
 	return 1
 }
 
+func (args *TransactionArgs) paymaster() *common.Address {
+	if args.Paymaster != nil {
+		return args.Paymaster
+	}
+	return &common.Address{}
+}
+
 func (args *TransactionArgs) paymasterData() []byte {
 	if args.PaymasterData != nil {
 		return *args.PaymasterData
@@ -711,6 +718,13 @@ func (args *TransactionArgs) postOpGas() uint64 {
 		return uint64(*args.PostOpGas)
 	}
 	return 0
+}
+
+func (args *TransactionArgs) deployer() *common.Address {
+	if args.Deployer != nil {
+		return args.Deployer
+	}
+	return &common.Address{}
 }
 
 func (args *TransactionArgs) deployerData() []byte {

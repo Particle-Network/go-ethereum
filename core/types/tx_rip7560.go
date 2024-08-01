@@ -162,6 +162,20 @@ func (tx *Rip7560AccountAbstractionTx) decode(input []byte) error {
 	return rlp.DecodeBytes(input[1:], tx)
 }
 
+func (tx *Rip7560AccountAbstractionTx) paymaster() *common.Address {
+	if tx.Paymaster != nil {
+		return tx.Paymaster
+	}
+	return &common.Address{}
+}
+
+func (tx *Rip7560AccountAbstractionTx) deployer() *common.Address {
+	if tx.Deployer != nil {
+		return tx.Deployer
+	}
+	return &common.Address{}
+}
+
 // Rip7560Transaction an equivalent of a solidity struct only used to encode the 'transaction' parameter
 type Rip7560Transaction struct {
 	Sender               common.Address
@@ -213,9 +227,9 @@ func (tx *Rip7560AccountAbstractionTx) AbiEncode() ([]byte, error) {
 		MaxFeePerGas:         tx.GasFeeCap,
 		MaxPriorityFeePerGas: tx.GasTipCap,
 		BuilderFee:           tx.BuilderFee,
-		Paymaster:            *tx.Paymaster,
+		Paymaster:            *tx.paymaster(),
 		PaymasterData:        tx.PaymasterData,
-		Deployer:             *tx.Deployer,
+		Deployer:             *tx.deployer(),
 		DeployerData:         tx.DeployerData,
 		CallData:             tx.Data,
 		Signature:            tx.Signature,
