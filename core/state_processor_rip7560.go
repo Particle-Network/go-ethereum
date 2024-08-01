@@ -140,6 +140,7 @@ func ApplyRIP7560Transaction(
 		statedb.AddBalance(*payment, refundGasBalance, 0x01)
 		gp.AddGas(refundGas.Uint64())
 		log.Info("[RIP-7560] Validation Phase - refundGas", "v", refundGas)
+		// root := statedb.IntermediateRoot(true).Bytes()
 		receipt := &types.Receipt{Type: transaction.Type(), PostState: nil, CumulativeGasUsed: gasUsed}
 
 		receipt.Logs = statedb.GetLogs(transaction.Hash(), header.Number.Uint64(), header.Hash())
@@ -267,23 +268,15 @@ func ApplyRIP7560ValidationPhases(
 		log.Info("[RIP-7560] Nonce Validation Frame", "nonceType", "legacy-nonce")
 		// Use legacy nonce validation
 		senderNonce := statedb.GetNonce(*txData.Sender)
-		// TODO: add error messages like ErrNonceTooLow, ErrNonceTooHigh, etc.
 		if msgNonce := txData.BigNonce.Uint64(); senderNonce != msgNonce {
-			log.Error("RIP-7560] nonce validation failed 01- invalid transaction", "msgNonce", msgNonce, "senderNonce", senderNonce)
-			return nil, gasUsed, errors.New("[RIP-7560] nonce validation failed 01- invalid transaction")
+			log.Error("RIP-7560] nonce validation failed 01- nonce not match", "msgNonce", msgNonce, "senderNonce", senderNonce)
+			return nil, gasUsed, errors.New("[RIP-7560] nonce validation failed 01- nonce not match")
 		} else if senderNonce == 0 {
 			zeroAddress := common.Address{}
 			if txData.Deployer == nil || zeroAddress.Cmp(*txData.Deployer) == 0 {
 				return nil, gasUsed,
 					errors.New("[RIP-7560] nonce validation failed 02- invalid deployer")
 			}
-			// deployerData := txData.DeployerData
-			// if len(deployerData) < 20 {
-			// 	return nil, errors.New("[RIP-7560] nonce validation failed 02- invalid transaction")
-			// }
-			// if bytes.Equal(deployerData[:20], common.Address{}.Bytes()) {
-			// 	return nil, errors.New("[RIP-7560] nonce validation failed 03- invalid transaction")
-			// }
 		} else {
 			// tx success or failed, whatever, nonce + 1
 			statedb.SetNonce(txContext.Origin, senderNonce+1)

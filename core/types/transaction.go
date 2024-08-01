@@ -49,9 +49,7 @@ const (
 	AccessListTxType = 0x01
 	DynamicFeeTxType = 0x02
 	BlobTxType       = 0x03
-	RIP7560TxType    = 0x04
-	// TODO: do we really need a new type?
-	// Rip7560BundleHeaderType = 0x05
+	RIP7560TxType    = 0x32
 )
 
 // Transaction is an Ethereum transaction.
