@@ -77,9 +77,9 @@ func (tx *Rip7560AccountAbstractionTx) copy() TxData {
 
 		Sender:        copyAddressPtr(tx.Sender),
 		Signature:     common.CopyBytes(tx.Signature),
-		Paymaster:     copyAddressPtr(tx.Paymaster),
+		Paymaster:     copyAddressPtr(tx.paymaster()),
 		PaymasterData: common.CopyBytes(tx.PaymasterData),
-		Deployer:      copyAddressPtr(tx.Deployer),
+		Deployer:      copyAddressPtr(tx.deployer()),
 		DeployerData:  common.CopyBytes(tx.DeployerData),
 		BuilderFee:    new(big.Int),
 		ValidationGas: tx.ValidationGas,
