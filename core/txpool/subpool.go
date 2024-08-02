@@ -81,9 +81,16 @@ type PendingFilter struct {
 	BaseFee *uint256.Int // Minimum 1559 basefee needed to include a transaction
 	BlobFee *uint256.Int // Minimum 4844 blobfee needed to include a blob transaction
 
-	OnlyPlainTxs bool // Return only plain EVM transactions (peer-join announces, block space filling)
-	OnlyBlobTxs  bool // Return only blob transactions (block blob-space filling)
+	OnlyPlainTxs   bool // Return only plain EVM transactions (peer-join announces, block space filling)
+	OnlyBlobTxs    bool // Return only blob transactions (block blob-space filling)
+	OnlyRIP7560Txs bool
 }
+
+const (
+	TypeLegacyPool = uint64(0)
+
+	TypeRIP7560Pool = uint64(3)
+)
 
 // SubPool represents a specialized transaction pool that lives on its own (e.g.
 // blob pool). Since independent of how many specialized pools we have, they do
@@ -91,6 +98,7 @@ type PendingFilter struct {
 // production, this interface defines the common methods that allow the primary
 // transaction pool to manage the subpools.
 type SubPool interface {
+	Type() uint64
 	// Filter is a selector used to decide whether a transaction would be added
 	// to this particular subpool.
 	Filter(tx *types.Transaction) bool
