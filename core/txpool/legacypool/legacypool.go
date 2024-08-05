@@ -273,6 +273,10 @@ func New(config Config, chain BlockChain) *LegacyPool {
 	return pool
 }
 
+func (pool *LegacyPool) Type() uint64 {
+	return 0
+}
+
 // Filter returns whether the given transaction can be consumed by the legacy
 // pool, specifically, whether it is a Legacy, AccessList or Dynamic transaction.
 func (pool *LegacyPool) Filter(tx *types.Transaction) bool {
@@ -525,7 +529,7 @@ func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, 
 func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	// If only blob transactions are requested, this pool is unsuitable as it
 	// contains none, don't even bother.
-	if filter.OnlyBlobTxs {
+	if filter.OnlyBlobTxs || filter.OnlyRIP7560Txs {
 		return nil
 	}
 	pool.mu.Lock()
@@ -1023,6 +1027,11 @@ func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error 
 	if sync {
 		<-done
 	}
+	return errs
+}
+
+func (pool *LegacyPool) Pop7560(txs []*types.Transaction) []error {
+	var errs []error
 	return errs
 }
 

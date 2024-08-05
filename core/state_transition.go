@@ -300,6 +300,13 @@ func (st *StateTransition) preCheck() error {
 				msg.From.Hex(), codeHash)
 		}
 	}
+	// 0x0000000000000000000000000000000000007560 and 0x00000000000000000000000000000000ffff7560 skip check
+	isSysAddress := msg.From.Cmp(AA_EntryPointAddress) == 0 || msg.From.Cmp(AA_DeployerCallerAddress) == 0
+	if isSysAddress {
+		st.gasRemaining += st.msg.GasLimit
+		st.initialGas = st.msg.GasLimit
+		return nil
+	}
 	// Make sure that transaction gasFeeCap is greater than the baseFee (post london)
 	if st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber) {
 		// Skip the checks if gas fields are zero and baseFee was explicitly disabled (eth_call)
@@ -440,8 +447,13 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if contractCreation {
 		ret, _, st.gasRemaining, vmerr = st.evm.Create(sender, msg.Data, st.gasRemaining, value)
 	} else {
-		// Increment the nonce for the next transaction
-		st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
+		isSysAddress := msg.From.Cmp(AA_EntryPointAddress) == 0 || msg.From.Cmp(AA_DeployerCallerAddress) == 0
+		// skip nonce increment when RIP-7560 frame
+		if !isSysAddress {
+			// Increment the nonce for the next transaction
+			st.state.SetNonce(msg.From, st.state.GetNonce(sender.Address())+1)
+		}
+
 		ret, st.gasRemaining, vmerr = st.evm.Call(sender, st.to(), msg.Data, st.gasRemaining, value)
 	}
 

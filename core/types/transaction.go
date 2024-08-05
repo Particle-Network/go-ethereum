@@ -49,6 +49,7 @@ const (
 	AccessListTxType = 0x01
 	DynamicFeeTxType = 0x02
 	BlobTxType       = 0x03
+	RIP7560TxType    = 0x32
 )
 
 // Transaction is an Ethereum transaction.
@@ -57,9 +58,12 @@ type Transaction struct {
 	time  time.Time // Time first seen locally (spam avoidance)
 
 	// caches
-	hash atomic.Pointer[common.Hash]
-	size atomic.Uint64
-	from atomic.Pointer[sigCache]
+	hash atomic.Value
+	size atomic.Value
+	from atomic.Value
+
+	// cache of details to compute the data availability fee
+	rollupCostData atomic.Value
 }
 
 // NewTx creates a new transaction.
@@ -100,6 +104,9 @@ type TxData interface {
 
 	encode(*bytes.Buffer) error
 	decode([]byte) error
+
+	// --- RIP 7560 ---
+	// isSystemTx() bool
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -184,9 +191,11 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		tx.setDecoded(&data, uint64(len(b)))
 		return nil
 	}
+	fmt.Println("TX", common.Bytes2Hex(b))
 	// It's an EIP-2718 typed transaction envelope.
 	inner, err := tx.decodeTyped(b)
 	if err != nil {
+		// fmt.Println(err)
 		return err
 	}
 	tx.setDecoded(inner, uint64(len(b)))
@@ -198,6 +207,7 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 	if len(b) <= 1 {
 		return nil, errShortTypedTx
 	}
+	// fmt.Println("decodeTyped", common.Bytes2Hex(b[0:2]))
 	var inner TxData
 	switch b[0] {
 	case AccessListTxType:
@@ -206,6 +216,12 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		inner = new(DynamicFeeTx)
 	case BlobTxType:
 		inner = new(BlobTx)
+	case RIP7560TxType:
+		inner = new(Rip7560AccountAbstractionTx)
+	// case Rip7560BundleHeaderType:
+	// 	inner = new(Rip7560BundleHeaderTx)
+	case DepositTxType:
+		inner = new(DepositTx)
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -303,11 +319,169 @@ func (tx *Transaction) Value() *big.Int { return new(big.Int).Set(tx.inner.value
 // Nonce returns the sender account nonce of the transaction.
 func (tx *Transaction) Nonce() uint64 { return tx.inner.nonce() }
 
+// EffectiveNonce returns the nonce that was actually used as part of transaction execution
+// Returns nil if the effective nonce is not known
+func (tx *Transaction) EffectiveNonce() *uint64 {
+	type txWithEffectiveNonce interface {
+		effectiveNonce() *uint64
+	}
+
+	if itx, ok := tx.inner.(txWithEffectiveNonce); ok {
+		return itx.effectiveNonce()
+	}
+	nonce := tx.inner.nonce()
+	return &nonce
+}
+
 // To returns the recipient address of the transaction.
 // For contract-creation transactions, To returns nil.
 func (tx *Transaction) To() *common.Address {
 	return copyAddressPtr(tx.inner.to())
 }
+
+// SourceHash returns the hash that uniquely identifies the source of the deposit tx,
+// e.g. a user deposit event, or a L1 info deposit included in a specific L2 block height.
+// Non-deposit transactions return a zeroed hash.
+func (tx *Transaction) SourceHash() common.Hash {
+	if dep, ok := tx.inner.(*DepositTx); ok {
+		return dep.SourceHash
+	}
+	return common.Hash{}
+}
+
+// Mint returns the ETH to mint in the deposit tx.
+// This returns nil if there is nothing to mint, or if this is not a deposit tx.
+func (tx *Transaction) Mint() *big.Int {
+	if dep, ok := tx.inner.(*DepositTx); ok {
+		return dep.Mint
+	}
+	return nil
+}
+
+// IsDepositTx returns true if the transaction is a deposit tx type.
+func (tx *Transaction) IsDepositTx() bool {
+	return tx.Type() == DepositTxType
+}
+
+// IsSystemTx returns true for deposits that are system transactions. These transactions
+// are executed in an unmetered environment & do not contribute to the block gas limit.
+// func (tx *Transaction) IsSystemTx() bool {
+// 	return tx.inner.isSystemTx()
+// }
+
+// RIP-7560 support
+func (tx *Transaction) SubType() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.Subtype
+	}
+	// TODO : handle case
+	return 0
+}
+
+func (tx *Transaction) Sender() *common.Address {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.Sender
+	}
+	return nil
+}
+
+func (tx *Transaction) Signature() []byte {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.Signature
+	}
+	return nil
+}
+
+func (tx *Transaction) Paymaster() *common.Address {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.Paymaster
+	}
+	return &common.Address{}
+}
+
+func (tx *Transaction) PaymasterData() []byte {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.PaymasterData
+	}
+	return nil
+}
+
+func (tx *Transaction) Deployer() *common.Address {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.Deployer
+	}
+	return &common.Address{}
+}
+
+func (tx *Transaction) DeployerData() []byte {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.DeployerData
+	}
+	return nil
+}
+
+func (tx *Transaction) BuilderFee() *big.Int {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.BuilderFee
+	}
+	return nil
+}
+
+func (tx *Transaction) ValidationGas() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.ValidationGas
+	}
+	return 0
+}
+
+func (tx *Transaction) CallGas() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.CallGas
+	}
+	return 0
+}
+
+func (tx *Transaction) PaymasterGas() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.PaymasterGas
+	}
+	return 0
+}
+
+func (tx *Transaction) PostOpGas() uint64 {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.PostOpGas
+	}
+	return 0
+}
+
+func (tx *Transaction) BigNonce() *big.Int {
+	if dep, ok := tx.inner.(*Rip7560AccountAbstractionTx); ok {
+		return dep.BigNonce
+	}
+	return nil
+}
+
+// func (tx *Transaction) BlockNumber() *big.Int {
+// 	if dep, ok := tx.inner.(*Rip7560BundleHeaderTx); ok {
+// 		return dep.BlockNumber
+// 	}
+// 	return nil
+// }
+
+// func (tx *Transaction) TransactionCount() uint64 {
+// 	if dep, ok := tx.inner.(*Rip7560BundleHeaderTx); ok {
+// 		return dep.TransactionCount
+// 	}
+// 	return 0
+// }
+
+// func (tx *Transaction) TransactionIndex() uint64 {
+// 	if dep, ok := tx.inner.(*Rip7560BundleHeaderTx); ok {
+// 		return dep.TransactionIndex
+// 	}
+// 	return 0
+// }
 
 // Cost returns (gas * gasPrice) + (blobGas * blobGasPrice) + value.
 func (tx *Transaction) Cost() *big.Int {
@@ -350,6 +524,9 @@ func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
 func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
+	if tx.Type() == DepositTxType {
+		return new(big.Int), nil
+	}
 	if baseFee == nil {
 		return tx.GasTipCap(), nil
 	}
@@ -416,6 +593,18 @@ func (tx *Transaction) BlobTxSidecar() *BlobTxSidecar {
 	return nil
 }
 
+// SetBlobTxSidecar sets the sidecar of a transaction.
+// The sidecar should match the blob-tx versioned hashes, or the transaction will be invalid.
+// This allows tools to easily re-attach blob sidecars to signed transactions that omit the sidecar.
+func (tx *Transaction) SetBlobTxSidecar(sidecar *BlobTxSidecar) error {
+	blobtx, ok := tx.inner.(*BlobTx)
+	if !ok {
+		return fmt.Errorf("not a blob tx, type = %d", tx.Type())
+	}
+	blobtx.Sidecar = sidecar
+	return nil
+}
+
 // BlobGasFeeCapCmp compares the blob fee cap of two transactions.
 func (tx *Transaction) BlobGasFeeCapCmp(other *Transaction) int {
 	return tx.BlobGasFeeCap().Cmp(other.BlobGasFeeCap())
@@ -466,6 +655,18 @@ func (tx *Transaction) WithBlobTxSidecar(sideCar *BlobTxSidecar) *Transaction {
 	return cpy
 }
 
+func (tx *Transaction) Rip7560TransactionData() *Rip7560AccountAbstractionTx {
+	inner := tx.inner
+	ptr := inner.(*Rip7560AccountAbstractionTx)
+	return ptr
+}
+
+// func (tx *Transaction) Rip7560BundleHeaderTransactionData() *Rip7560BundleHeaderTx {
+// 	inner := tx.inner
+// 	ptr := inner.(*Rip7560BundleHeaderTx)
+// 	return ptr
+// }
+
 // SetTime sets the decoding time of a transaction. This is used by tests to set
 // arbitrary times and by persistent transaction pools when loading old txs from
 // disk.
@@ -482,24 +683,29 @@ func (tx *Transaction) Time() time.Time {
 // Hash returns the transaction hash.
 func (tx *Transaction) Hash() common.Hash {
 	if hash := tx.hash.Load(); hash != nil {
-		return *hash
+		return hash.(common.Hash)
 	}
 
 	var h common.Hash
 	if tx.Type() == LegacyTxType {
 		h = rlpHash(tx.inner)
 	} else {
-		h = prefixedRlpHash(tx.Type(), tx.inner)
+		// if tx.Type() == Rip7560BundleHeaderType {
+		// 	rlpHash := rlpHash(tx.Rip7560BundleHeaderTransactionData())
+		// 	h = crypto.Keccak256Hash(append([]byte{Rip7560BundleHeaderType, ScaTransactionSubtype}, rlpHash[:]...))
+		// }
+		// else {
+		h = prefixedRlpHash([]byte{tx.Type()}, tx.inner)
 	}
-	tx.hash.Store(&h)
+	tx.hash.Store(h)
 	return h
 }
 
 // Size returns the true encoded storage size of the transaction, either by encoding
 // and returning it, or returning a previously cached value.
 func (tx *Transaction) Size() uint64 {
-	if size := tx.size.Load(); size > 0 {
-		return size
+	if size := tx.size.Load(); size != nil {
+		return size.(uint64)
 	}
 
 	// Cache miss, encode and cache.
@@ -556,7 +762,7 @@ func (s Transactions) EncodeIndex(i int, w *bytes.Buffer) {
 	}
 }
 
-// TxDifference returns a new set of transactions that are present in a but not in b.
+// TxDifference returns a new set which is the difference between a and b.
 func TxDifference(a, b Transactions) Transactions {
 	keep := make(Transactions, 0, len(a))
 
@@ -574,7 +780,7 @@ func TxDifference(a, b Transactions) Transactions {
 	return keep
 }
 
-// HashDifference returns a new set of hashes that are present in a but not in b.
+// HashDifference returns a new set which is the difference between a and b.
 func HashDifference(a, b []common.Hash) []common.Hash {
 	keep := make([]common.Hash, 0, len(a))
 

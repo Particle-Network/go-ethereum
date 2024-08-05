@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 // Options are the contextual parameters to execute the requested call.
@@ -44,6 +45,11 @@ type Options struct {
 	State  *state.StateDB      // Pre-state on top of which to estimate the gas
 
 	ErrorRatio float64 // Allowed overestimation ratio for faster estimation termination
+
+	// RIP-7560 specific fields
+	Payment               *common.Address
+	PrepaidGas            *uint256.Int
+	ValidationPhaseResult *core.ValidationPhaseResult
 }
 
 // Estimate returns the lowest possible gas limit that allows the transaction to

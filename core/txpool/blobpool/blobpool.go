@@ -334,6 +334,10 @@ func New(config Config, chain BlockChain) *BlobPool {
 	}
 }
 
+func (pool *BlobPool) Type() uint64 {
+	return 1
+}
+
 // Filter returns whether the given transaction can be consumed by the blob pool.
 func (p *BlobPool) Filter(tx *types.Transaction) bool {
 	return tx.Type() == types.BlobTxType
@@ -1226,6 +1230,11 @@ func (p *BlobPool) Add(txs []*types.Transaction, local bool, sync bool) []error 
 	return errs
 }
 
+func (pool *BlobPool) Pop7560(txs []*types.Transaction) []error {
+	var errs []error
+	return errs
+}
+
 // add inserts a new blob transaction into the pool if it passes validation (both
 // consensus validity and pool restrictions).
 func (p *BlobPool) add(tx *types.Transaction) (err error) {
@@ -1453,7 +1462,7 @@ func (p *BlobPool) drop() {
 func (p *BlobPool) Pending(filter txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	// If only plain transactions are requested, this pool is unsuitable as it
 	// contains none, don't even bother.
-	if filter.OnlyPlainTxs {
+	if filter.OnlyPlainTxs || filter.OnlyRIP7560Txs {
 		return nil
 	}
 	// Track the amount of time waiting to retrieve the list of pending blob txs

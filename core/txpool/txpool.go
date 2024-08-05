@@ -335,6 +335,7 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 	// back the errors into the original sort order.
 	errsets := make([][]error, len(p.subpools))
 	for i := 0; i < len(p.subpools); i++ {
+		log.Warn("subpool Add", "subpool", p.subpools[i].Type(), "count", len(txsets[i]))
 		errsets[i] = p.subpools[i].Add(txsets[i], local, sync)
 	}
 	errs := make([]error, len(txs))
@@ -344,10 +345,28 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 			errs[i] = core.ErrTxTypeNotSupported
 			continue
 		}
+		if errsets[split] == nil {
+			continue
+		}
 		// Find which subpool handled it and pull in the corresponding error
 		errs[i] = errsets[split][0]
 		errsets[split] = errsets[split][1:]
 	}
+	return errs
+}
+
+func (p *TxPool) Pop7560(txs []*types.Transaction) []error {
+	for _, pool := range p.subpools {
+		if pool.Type() == 3 {
+			pool.Pop7560(txs)
+			// callback := func() {
+			// 	pool.Pop7560(txs)
+			// }
+			// // setTimeout
+			// time.AfterFunc(1*time.Second, callback)
+		}
+	}
+	var errs []error
 	return errs
 }
 
@@ -356,7 +375,27 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 //
 // The transactions can also be pre-filtered by the dynamic fee components to
 // reduce allocations and load on downstream subsystems.
+// func (p *TxPool) Pending(filter PendingFilter) map[common.Address][]*LazyTransaction {
+// 	txs := make(map[common.Address][]*LazyTransaction)
+// 	for _, subpool := range p.subpools {
+// 		for addr, set := range subpool.Pending(filter) {
+// 			txs[addr] = set
+// 		}
+// 	}
+// 	return txs
+// }
+
 func (p *TxPool) Pending(filter PendingFilter) map[common.Address][]*LazyTransaction {
+	if filter.OnlyRIP7560Txs {
+		txs := make(map[common.Address][]*LazyTransaction)
+		for _, subpool := range p.subpools {
+			if subpool.Type() == 3 {
+				txs[common.Address{}] = subpool.Pending(filter)[common.Address{}]
+
+			}
+		}
+		return txs
+	}
 	txs := make(map[common.Address][]*LazyTransaction)
 	for _, subpool := range p.subpools {
 		for addr, set := range subpool.Pending(filter) {
